@@ -17,8 +17,7 @@ var Nil Guid
 var cryptoRandReader io.Reader // initialized in init()
 
 func New() (guid Guid) {
-	_, err := cryptoRandReader.Read(guid[:])
-	if err != nil {
+	if _, err := cryptoRandReader.Read(guid[:]); err != nil {
 		panic(err) // cryptoRand.Reader.Read should never fail; if it does, there is no safe recourse
 	}
 	return
