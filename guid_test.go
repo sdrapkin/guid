@@ -4,6 +4,13 @@ import (
 	"testing"
 )
 
+func TestGuidLength(t *testing.T) {
+	guidLength := len(New())
+	if guidLength != GuidByteSize {
+		t.Errorf("Generated Guid should have length [%d], got [%d]", GuidByteSize, guidLength)
+	}
+} //TestGuidLength()
+
 func TestGenerateGuids(t *testing.T) {
 	guids := make([]Guid, 1_000_000)
 	for i := range guids {

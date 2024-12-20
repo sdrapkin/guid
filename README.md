@@ -1,6 +1,7 @@
 # guid
 ### Fast cryptographically safe Guid generator for Go.
 
+[Go playground](https://go.dev/play/p/H98wqbCQH_m)
 ```go
 package main
 
