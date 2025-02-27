@@ -2,7 +2,6 @@ package guid
 
 import (
 	cryptoRand "crypto/rand"
-	"io"
 )
 
 // Size of a Guid in bytes.
@@ -14,16 +13,9 @@ type Guid [GuidByteSize]byte
 // Empty Guid
 var Nil Guid
 
-var cryptoRandReader io.Reader // initialized in init()
-
 // New generates a new cryptographically secure Guid.
 func New() (guid Guid) {
-	if _, err := cryptoRandReader.Read(guid[:]); err != nil {
-		panic(err) // cryptoRand.Reader.Read should never fail; if it does, there is no safe recourse
-	}
+	// cryptoRand.Read in Go 1.24 is guaranteed to never fail and always fill b fully (https://pkg.go.dev/crypto/rand#Read)
+	cryptoRand.Read(guid[:])
 	return
 } //New()
-
-func init() {
-	cryptoRandReader = cryptoRand.Reader
-} //init()

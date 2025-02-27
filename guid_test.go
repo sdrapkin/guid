@@ -36,9 +36,9 @@ func duplicatesFound(guids []Guid) bool {
 // BenchmarkNew benchmarks the New function of the guid package.
 // to run: go test -bench=".*" -benchmem -benchtime=5s
 func BenchmarkGuid_New(b *testing.B) {
-	b.ResetTimer() // Reset the timer to exclude setup time (if any).
+	// Reset the timer to exclude setup time (if any).
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = New()
 	}
 }
