@@ -1,6 +1,9 @@
 package guid
 
 import (
+	"runtime"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -22,6 +25,38 @@ func TestGenerateGuids(t *testing.T) {
 		t.Errorf("Duplicate Guids found")
 	}
 } //TestGenerateGuids()
+
+func TestGenerateGuidsInParallel(t *testing.T) {
+	t.Parallel()
+	guids := make([]Guid, 4_000_000)
+
+	guidIndex := int64(-1) // Use int64 for atomic operations
+	var wg sync.WaitGroup
+	numCPUs := runtime.NumCPU()
+	t.Logf("Using %d CPUs for parallel GUID generation", numCPUs)
+	wg.Add(numCPUs)
+
+	for range numCPUs { // Concurrently generate GUIDs
+		go func() {
+			defer wg.Done()
+			for {
+				idx := int(atomic.AddInt64(&guidIndex, 1))
+				if idx >= len(guids) {
+					break
+				}
+				guids[idx] = New()
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	guids[len(guids)-1] = Nil
+	//guids[len(guids)-2] = Nil // simulate a failed test
+	if duplicatesFound(guids) {
+		t.Errorf("Duplicate Guids found")
+	}
+}
 
 func duplicatesFound(guids []Guid) bool {
 	lenGuids := len(guids)
