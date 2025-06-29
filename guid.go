@@ -6,14 +6,14 @@ import (
 )
 
 const (
-	GuidByteSize      = 16                               // Size of a Guid in bytes
-	GuidCacheByteSize = 4096                             // 4096 bytes per cache
-	GuidsPerCache     = GuidCacheByteSize / GuidByteSize // 256 GUIDs per cache (4096/16)
+	GuidByteSize      = 16                           // Size of a Guid in bytes
+	guidsPerCache     = 256                          // 256 Guids per cache - do not change this value
+	guidCacheByteSize = GuidByteSize * guidsPerCache // 4096 bytes per cache (256*16)
 )
 
-// Ensure that the constants are correct.
-var _ = map[bool]int{false: 0, GuidsPerCache == 256: 1}
-var _ = map[bool]int{false: 0, GuidsPerCache*GuidByteSize == GuidCacheByteSize: 1}
+// Ensure that the constants are not changed without thought.
+var _ = map[bool]int{false: 0, guidsPerCache == 256: 1}
+var _ = map[bool]int{false: 0, guidCacheByteSize == 4096: 1}
 
 // 16-byte (128-bit) cryptographically random value.
 type Guid [GuidByteSize]byte
@@ -21,9 +21,9 @@ type Guid [GuidByteSize]byte
 // Empty Guid (zero value for Guid)
 var Nil Guid
 
-// guidCache holds a 4096-byte buffer and a byte index for GUID allocation
+// guidCache holds a 4096-byte buffer and a byte index for Guid allocation.
 type guidCache struct {
-	buffer [GuidCacheByteSize]byte
+	buffer [guidCacheByteSize]byte
 	index  uint8
 }
 
@@ -41,7 +41,6 @@ func New() (guid Guid) {
 	if guidCacheRef.index == 0 {
 		// Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
 		cryptoRand.Read(guidCacheRef.buffer[:])
-
 	}
 
 	// Extract GUID at current index
@@ -49,7 +48,6 @@ func New() (guid Guid) {
 	copy(guid[:], guidCacheRef.buffer[startPos:startPos+GuidByteSize])
 
 	guidCacheRef.index++ // Increment index for next call, uint8 wraps from 255 to 0 automatically
-
 	guidCachePool.Put(guidCacheRef)
 	return
 } //New()
