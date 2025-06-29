@@ -42,3 +42,13 @@ func BenchmarkGuid_New(b *testing.B) {
 		_ = New()
 	}
 }
+
+// BenchmarkGuid_New_Parallel benchmarks the New function of the guid package in parallel.
+// to run: go test -bench=".*" -cpu=8 -benchmem -benchtime=5s
+func BenchmarkGuid_New_Parallel(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_ = New()
+		}
+	})
+}
