@@ -1,8 +1,10 @@
 package guid
 
 import (
+	cryptoRand "crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"runtime"
 	"sync"
@@ -77,7 +79,9 @@ func TestGenerateGuidsInParallel(t *testing.T) {
 				if idx >= len(guids) {
 					break
 				}
-				guids[idx] = New()
+				g := New()
+				_ = g.String() // also test that .String() never panics
+				guids[idx] = g
 			}
 		}()
 	}
@@ -143,6 +147,20 @@ func TestGuid_Marshalling_ZeroAndNilInputs(t *testing.T) {
 	if err := g.UnmarshalBinary([]byte{}); err == nil {
 		t.Error("UnmarshalBinary(empty) should fail")
 	}
+	err := g.UnmarshalBinary([]byte{1, 2, 3})
+	if err == nil {
+		t.Error("UnmarshalBinary should fail on short slice")
+	}
+	// Too long (should succeed, only first 16 bytes used)
+	data := make([]byte, 32)
+	for i := range data {
+		data[i] = byte(i)
+	}
+	err = g.UnmarshalBinary(data)
+	if err != nil {
+		t.Errorf("UnmarshalBinary failed on long slice: %v", err)
+	}
+
 	// MarshalBinary: always returns 16 bytes
 	bin, err := g.MarshalBinary()
 	if err != nil {
@@ -166,6 +184,14 @@ func TestGuid_Marshalling_ZeroAndNilInputs(t *testing.T) {
 	}
 	if len(txt) != 22 {
 		t.Errorf("MarshalText returned %d bytes, want 22", len(txt))
+	}
+	// Wrong length
+	if err := g.UnmarshalText([]byte("short")); err == nil {
+		t.Error("UnmarshalText should fail on short input")
+	}
+	// Invalid chars
+	if err = g.UnmarshalText([]byte("!@#$%^&*()_+{}|")); err == nil {
+		t.Error("UnmarshalText should fail on invalid chars")
 	}
 
 	// Parse: zero-length and nil
@@ -260,6 +286,289 @@ func TestParseAndDecodeBase64URL(t *testing.T) {
 	if err == nil {
 		t.Errorf("Parse(%q) should fail", unicodeStr)
 	}
+}
+
+func TestNilGuidBehavior(t *testing.T) {
+	var nilGuid Guid
+	if nilGuid != Nil {
+		t.Errorf("Zero Guid should equal Nil constant")
+	}
+	if Nil.String() != "AAAAAAAAAAAAAAAAAAAAAA" {
+		t.Errorf("Nil.String() = %q, want %q", Nil.String(), "AAAAAAAAAAAAAAAAAAAAAA")
+	}
+	txt, err := Nil.MarshalText()
+	if err != nil {
+		t.Errorf("Nil.MarshalText() error: %v", err)
+	}
+	if string(txt) != "AAAAAAAAAAAAAAAAAAAAAA" {
+		t.Errorf("Nil.MarshalText() = %q, want %q", string(txt), "AAAAAAAAAAAAAAAAAAAAAA")
+	}
+	bin, err := Nil.MarshalBinary()
+	if err != nil {
+		t.Errorf("Nil.MarshalBinary() error: %v", err)
+	}
+	if len(bin) != GuidByteSize {
+		t.Errorf("Nil.MarshalBinary() returned %d bytes, want %d", len(bin), GuidByteSize)
+	}
+}
+
+func TestGuidEquality(t *testing.T) {
+	g1 := New()
+	g2 := g1
+	if g1 != g2 {
+		t.Error("Copied Guid should be equal to original")
+	}
+	g3 := New()
+	if g1 == g3 {
+		t.Error("Different Guids should not be equal")
+	}
+}
+
+func TestGuidMarshalUnmarshalRoundTrip(t *testing.T) {
+	g := New()
+	bin, err := g.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary failed: %v", err)
+	}
+	var g2 Guid
+	if err := g2.UnmarshalBinary(bin); err != nil {
+		t.Fatalf("UnmarshalBinary failed: %v", err)
+	}
+	if g != g2 {
+		t.Errorf("MarshalBinary/UnmarshalBinary round-trip mismatch")
+	}
+
+	txt, err := g.MarshalText()
+	if err != nil {
+		t.Fatalf("MarshalText failed: %v", err)
+	}
+	var g3 Guid
+	if err := g3.UnmarshalText(txt); err != nil {
+		t.Fatalf("UnmarshalText failed: %v", err)
+	}
+	if g != g3 {
+		t.Errorf("MarshalText/UnmarshalText round-trip mismatch")
+	}
+}
+
+func TestGuidStringLengthAndUniqueness(t *testing.T) {
+	seen := make(map[string]struct{})
+	for range 1000 {
+		g := New()
+		s := g.String()
+		if len(s) != 22 {
+			t.Errorf("Guid.String() length = %d, want 22", len(s))
+		}
+		if _, exists := seen[s]; exists {
+			t.Errorf("Duplicate Guid string: %q", s)
+		}
+		seen[s] = struct{}{}
+	}
+}
+
+func TestGuidEncodeBase64URLBufferSizes(t *testing.T) {
+	g := New()
+	// Correct size
+	buf := make([]byte, GuidBase64UrlByteSize)
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("EncodeBase64URL panicked with correct buffer size: %v", r)
+		}
+	}()
+	g.EncodeBase64URL(buf)
+	// Too large buffer should not panic
+	largeBuf := make([]byte, GuidBase64UrlByteSize+5)
+	g.EncodeBase64URL(largeBuf[:GuidBase64UrlByteSize])
+}
+
+func TestGuidParsePadding(t *testing.T) {
+	// Padding should fail
+	_, err := Parse("AAAAAAAAAAAAAAAAAAAAAA==")
+	if err == nil {
+		t.Error("Parse should fail with padding")
+	}
+}
+
+func TestGuidJSONMarshalling(t *testing.T) {
+	type wrapper1 struct {
+		ID Guid `json:"id"`
+	}
+	type wrapper2 struct {
+		ID *Guid `json:"id"`
+	}
+
+	{
+		w1 := wrapper1{ID: New()}
+		data1, err := json.Marshal(w1)
+		if err != nil {
+			t.Fatalf("json.Marshal failed: %v", err)
+		}
+		w1Clone := wrapper1{ID: New()}
+		if err := json.Unmarshal(data1, &w1Clone); err != nil {
+			t.Fatalf("json.Unmarshal failed: %v", err)
+		}
+		if w1.ID != w1Clone.ID {
+			t.Errorf("JSON round-trip mismatch: got %v, want %v", w1Clone.ID, w1.ID)
+		}
+	}
+	{
+		w1 := wrapper1{ID: Nil}
+		data1, err := json.Marshal(w1)
+		if err != nil {
+			t.Fatalf("json.Marshal failed: %v", err)
+		}
+		w1Clone := wrapper1{ID: New()}
+		if err := json.Unmarshal(data1, &w1Clone); err != nil {
+			t.Fatalf("json.Unmarshal failed: %v", err)
+		}
+		if w1.ID != w1Clone.ID {
+			t.Errorf("JSON round-trip mismatch: got %v, want %v", w1Clone.ID, w1.ID)
+		}
+	}
+	{
+		w2 := wrapper2{ID: nil}
+		data2, err := json.Marshal(w2)
+		if err != nil || string(data2) != "{\"id\":null}" {
+			t.Fatalf("json.Marshal failed: %v", err)
+		}
+		g := New()
+		w2Clone := wrapper2{ID: &g}
+		if err := json.Unmarshal(data2, &w2Clone); err != nil {
+			t.Fatalf("json.Unmarshal failed: %v", err)
+		}
+		if w2.ID != w2Clone.ID {
+			t.Errorf("JSON round-trip mismatch: got %v, want %v", w2Clone.ID, w2.ID)
+		}
+	}
+	{
+		w2 := wrapper2{ID: &Nil}
+		data2, err := json.Marshal(w2)
+		if err != nil || string(data2) != "{\"id\":\"AAAAAAAAAAAAAAAAAAAAAA\"}" {
+			t.Fatalf("json.Marshal failed: %v", err)
+		}
+		g := New()
+		w2Clone := wrapper2{ID: &g}
+		if err := json.Unmarshal(data2, &w2Clone); err != nil {
+			t.Fatalf("json.Unmarshal failed: %v", err)
+		}
+		if *w2.ID != *w2Clone.ID {
+			t.Errorf("JSON round-trip mismatch: got %v, want %v", *w2Clone.ID, *w2.ID)
+		}
+	}
+	{
+		g := New()
+		w2 := wrapper2{ID: &g}
+		data2, err := json.Marshal(w2)
+		if err != nil {
+			t.Fatalf("json.Marshal failed: %v", err)
+		}
+		w2Clone := wrapper2{ID: nil}
+		if err := json.Unmarshal(data2, &w2Clone); err != nil {
+			t.Fatalf("json.Unmarshal failed: %v", err)
+		}
+		if *w2.ID != *w2Clone.ID {
+			t.Errorf("JSON round-trip mismatch: got %v, want %v", *w2Clone.ID, *w2.ID)
+		}
+	}
+	{
+		var g Guid
+		// Not a string
+		err := g.UnmarshalJSON([]byte("123"))
+		if err == nil {
+			t.Error("UnmarshalJSON should fail on non-string JSON")
+		}
+		// Invalid string
+		err = g.UnmarshalJSON([]byte(`"not-a-guid"`))
+		if err == nil {
+			t.Error("UnmarshalJSON should fail on invalid Guid string")
+		}
+	}
+}
+
+func TestFromBytes(t *testing.T) {
+	g1 := New()
+	g2, err := FromBytes(g1[:])
+	if err != nil {
+		t.Fatalf("FromBytes failed: %v", err)
+	}
+	if g2 != g1 {
+		t.Errorf("FromBytes mismatch: got %v, want %v", g2, g1)
+	}
+	// Too short
+	_, err = FromBytes(g1[:15])
+	if err == nil {
+		t.Error("FromBytes should fail on short slice")
+	}
+	// Too long
+	long := append(g1[:], g1[:4]...)
+	g2, err = FromBytes(long)
+	if err != nil {
+		t.Errorf("FromBytes failed on long slice: %v", err)
+	}
+	if g2 != g1 {
+		t.Errorf("FromBytes mismatch: got %v, want %v", g2, g1)
+	}
+}
+
+func FuzzParse(f *testing.F) {
+	// Add some valid and invalid seed cases
+	f.Add("AAAAAAAAAAAAAAAAAAAAAA")   // valid (Nil)
+	f.Add("_____________________w")   // valid
+	f.Add("not-a-guid")               // invalid
+	f.Add("")                         // invalid
+	f.Add("AAAAAAAAAAAAAAAAAAAAAA==") // invalid (with padding)
+	f.Add("1234567890123456789012")   // invalid (wrong chars)
+	f.Add("!@#$%^&*()_+{}|")          // invalid (wrong chars, wrong length)
+	f.Add("こんaにちは世ち")                 // unicode with len=22
+
+	f.Fuzz(func(t *testing.T, s string) {
+		g, err := Parse(s)
+		if err != nil {
+			// If Parse fails, that's fine for invalid input
+			return
+		}
+		// If Parse succeeds, the string must be 22 chars and must round-trip
+		if len(s) != GuidBase64UrlByteSize {
+			t.Errorf("Parse succeeded for string of wrong length: %q", s)
+		}
+		// Round-trip: g.String() should equal s (case for valid input)
+		s2 := g.String()
+		g2, err2 := Parse(s2)
+		if err2 != nil {
+			t.Errorf("Parse failed on round-trip string: %q", s2)
+		}
+		if g != g2 {
+			t.Errorf("Round-trip mismatch: got %v, want %v", g2, g)
+		}
+	})
+}
+
+func FuzzParseBytes(f *testing.F) {
+	f.Add([]byte("AAAAAAAAAAAAAAAAAAAAAA"))   // valid
+	f.Add([]byte("not-a-guid"))               // invalid
+	f.Add([]byte(""))                         // invalid
+	f.Add([]byte("AAAAAAAAAAAAAAAAAAAAAA==")) // invalid
+	f.Add([]byte("1234567890123456789012"))   // invalid
+	f.Add([]byte("!@#$%^&*()_+{}|"))          // invalid
+	f.Add([]byte("こんaにちは世ち"))                 // unicode
+
+	f.Fuzz(func(t *testing.T, b []byte) {
+		g, err := ParseBytes(b)
+		if err != nil {
+			return
+		}
+		if len(b) != GuidBase64UrlByteSize {
+			t.Errorf("ParseBytes succeeded for slice of wrong length: %q", b)
+		}
+		s := g.String()
+		g2, err2 := Parse(s)
+		if err2 != nil {
+			t.Errorf("Parse failed on round-trip string: %q", s)
+		}
+		if g != g2 {
+			t.Errorf("Round-trip mismatch: got %v, want %v", g2, g)
+		}
+	})
 }
 
 //*******************
@@ -511,6 +820,43 @@ func Benchmark_base64_RawURLEncoding_Encode(b *testing.B) {
 		for _, g := range benchGuids {
 			base64.RawURLEncoding.Encode(buffer, g[:])
 		}
+	}
+}
+
+func BenchmarkReadPerf(b *testing.B) {
+
+	sizes := []int{0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 513, 1024, 2048, 4096}
+
+	// Create a slice of slices
+	var data [][]byte
+	for _, size := range sizes {
+		// Allocate a zero-filled slice of the desired size
+		data = append(data, make([]byte, size))
+	}
+
+	separator := func() { fmt.Println("=================================") }
+	separator()
+	for _, buf := range data {
+		benchName_guid := fmt.Sprintf("      Guid_Read([%v]byte)", len(buf))
+		benchName_rand := fmt.Sprintf("cryptoRand_Read([%v]byte)", len(buf))
+		b.Run(
+			benchName_guid,
+			func(b *testing.B) {
+				for b.Loop() {
+					Read(buf)
+				}
+			},
+		)
+
+		b.Run(
+			benchName_rand,
+			func(b *testing.B) {
+				for b.Loop() {
+					cryptoRand.Read(buf)
+				}
+			},
+		)
+		separator()
 	}
 }
 

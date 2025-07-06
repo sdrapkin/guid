@@ -5,8 +5,10 @@ package guid
 import (
 	cryptoRand "crypto/rand"
 	"encoding"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"unsafe"
 )
@@ -34,6 +36,11 @@ var _ = map[bool]int{false: 0, guidCacheByteSize == 4096: 1}
 var (
 	// Empty Guid (zero value for Guid)
 	Nil Guid
+	// Reader is a global, shared instance of a cryptographically secure random number generator. It is safe for concurrent use.
+	Reader reader
+)
+
+var (
 	// ErrInvalidBase64UrlGuidEncoding is returned when a Base64Url string does not represent a valid Guid.
 	ErrInvalidBase64UrlGuidEncoding = errors.New("invalid Base64Url Guid encoding (invalid characters, or length != 22)")
 	// ErrInvalidGuidSlice is returned when a byte slice cannot represent a valid Guid (length < 16 bytes).
@@ -50,6 +57,7 @@ var (
 	_ encoding.TextUnmarshaler   = (*Guid)(nil)
 	_ encoding.BinaryMarshaler   = (*Guid)(nil)
 	_ encoding.BinaryUnmarshaler = (*Guid)(nil)
+	_ io.Reader                  = (*reader)(nil)
 )
 
 //==============================================
@@ -58,6 +66,7 @@ var (
 
 // Guid is a 16-byte (128-bit) cryptographically random value.
 type Guid [GuidByteSize]byte
+type reader struct{}
 
 //==============================================
 // Shared Variables
@@ -102,10 +111,48 @@ func (guid *Guid) MarshalText() ([]byte, error) {
 	return buffer, nil
 }
 
+// MarshalJSON implements the json.Marshaler interface.
+// It marshals the Guid to its Base64Url string representation.
+func (g Guid) MarshalJSON() ([]byte, error) {
+	return json.Marshal(g.String())
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+// It unmarshals a JSON string into a Guid.
+func (g *Guid) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return fmt.Errorf("guid: cannot unmarshal JSON string %s into a Guid: %w", string(data), err)
+	}
+
+	parsedGuid, err := Parse(s)
+	if err != nil {
+		return err // The error from Parse is already informative.
+	}
+
+	*g = parsedGuid
+	return nil
+}
+
 // String returns a Base64Url-encoded string representation of the Guid.
 func (guid *Guid) String() string {
 	buffer, _ := guid.MarshalText()
 	return unsafe.String(&buffer[0], GuidBase64UrlByteSize)
+
+	// Is it "safe" to use unsafe.String() here? Yes.
+	// buffer will be allocated on the heap, and will not be gc'ed until string is alive.
+	// This is the same approach that Golang uses in "strings.Clone()" [https://pkg.go.dev/strings#Clone],
+	// which calls internal "stringslite.Clone()":
+	// https://cs.opensource.google/go/go/+/refs/tags/go1.24.4:src/internal/stringslite/strings.go;l=143
+	/* stringslite.Clone():
+		func Clone(s string) string {
+		if len(s) == 0 {
+			return ""
+		}
+		b := make([]byte, len(s))
+		copy(b, s)
+		return unsafe.String(&b[0], len(b))
+	}*/
 }
 
 // EncodeBase64URL encodes the Guid into the provided dst as Base64Url.
@@ -132,6 +179,54 @@ func (guid *Guid) EncodeBase64URL(dst []byte) {
 	dst[j] = base64UrlAlphabet[b0>>2]
 	dst[j+1] = base64UrlAlphabet[(b0&0x03)<<4]
 }
+
+//==============================================
+// reader Extension Methods
+//==============================================
+
+// Read fills b with cryptographically secure random bytes.
+// It never returns an error, and always fills b entirely.
+// guid.Read() is up to 7x faster than crypto/rand.Read() for small slices.
+// if b is > 512 bytes, it simply calls crypto/rand.Read().
+func (r *reader) Read(b []byte) (n int, err error) {
+	const MaxBytesToFillViaGuids = 512
+	n = len(b)
+
+	if n == 0 {
+		return
+	}
+
+	if n > MaxBytesToFillViaGuids {
+		return cryptoRand.Read(b)
+	}
+
+	guidCacheRef := guidCachePool.Get().(*guidCache)
+
+	if guidCacheRef.index == 0 {
+		// Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
+		cryptoRand.Read(guidCacheRef.buffer[:])
+	}
+
+	n1 := copy(b, guidCacheRef.buffer[int(guidCacheRef.index)*GuidByteSize:])
+
+	if n1 == n {
+		// Case 1: Everything fit in one copy
+		guidCacheRef.index += byte((n1 + GuidByteSize - 1) / GuidByteSize)
+		guidCachePool.Put(guidCacheRef)
+		return
+	}
+
+	// Case 2: Need to refill for remainder
+	cryptoRand.Read(guidCacheRef.buffer[:])
+	n2 := copy(b[n1:], guidCacheRef.buffer[:])
+
+	if n1+n2 != n {
+		panic("guid: internal panic in reader.Read(); should never happen")
+	}
+	guidCacheRef.index = byte((n2 + GuidByteSize - 1) / GuidByteSize)
+	guidCachePool.Put(guidCacheRef)
+	return
+} //func (r *reader) Read
 
 //==============================================
 // Standalone Functions
@@ -194,7 +289,7 @@ func ParseBytes(src []byte) (g Guid, err error) {
 
 // FromBytes returns a Guid from a 16-byte slice.
 func FromBytes(src []byte) (Guid, error) {
-	if len(src) != GuidByteSize {
+	if len(src) < GuidByteSize {
 		return Guid{}, ErrInvalidGuidSlice
 	}
 	var g Guid
@@ -243,6 +338,14 @@ func DecodeBase64URL(dst []byte, src []byte) (ok bool) {
 
 	dst[limit] = (b0 << 2) | (b1 >> 4)
 	return true
+}
+
+// Read fills b with cryptographically secure random bytes.
+// It never returns an error, and always fills b entirely.
+// guid.Read() is up to 7x faster than crypto/rand.Read() for small slices.
+// if b is > 512 bytes, it simply calls crypto/rand.Read().
+func Read(b []byte) (n int, err error) {
+	return Reader.Read(b)
 }
 
 //==============================================
