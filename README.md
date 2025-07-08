@@ -51,6 +51,7 @@ Zo_hpnDxkOsAWLk1tIS6DA
 | `guid.Parse(s)`      | Parse Base64Url string to Guid |
 | `guid.ParseBytes(b)` | Parse Base64Url bytes to Guid |
 | `guid.FromBytes(b)`  | Parse 16-byte slice to Guid |
+| `guid.Read()` 🔥       | Faster alternative to `crypto/rand` |
 | `guid.Nil`           | The zero-value Guid |
 
 ## Benchmarks
