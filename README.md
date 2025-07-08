@@ -43,6 +43,16 @@ Zo_hpnDxkOsAWLk1tIS6DA
 * multi-goroutine calls do not increase per-call latency
 * if your library is faster - please let me know!
 
+## API Overview
+| Function | Description |
+|---|---|
+| `guid.New()`         | Generate a new Guid |
+| `guid.NewString()`   | Generate a new Guid as Base64Url string |
+| `guid.Parse(s)`      | Parse Base64Url string to Guid |
+| `guid.ParseBytes(b)` | Parse Base64Url bytes to Guid |
+| `guid.FromBytes(b)`  | Parse 16-byte slice to Guid |
+| `guid.Nil`           | The zero-value Guid |
+
 ## Benchmarks
 ```
 go test -bench=.* -benchtime=4s
@@ -97,4 +107,26 @@ To use the `guid` package in your Go project, import it as follows:
 
 ```go
 import "github.com/sdrapkin/guid"
+```
+## JSON Support
+
+`Guid` supports JSON marshalling and unmarshalling for both value and pointer types:
+
+- Value fields serialize as 22-character Base64Url strings.
+- Pointer fields serialize as strings or `null` (for nil pointers).
+- Zero-value GUIDs (`guid.Nil`) are handled correctly.
+
+### Example: JSON Marshalling
+```go
+type User struct {
+	ID        guid.Guid  `json:"id"`
+	ManagerID *guid.Guid `json:"mid"`
+}
+
+u, u2 := User{ID: guid.New()}, User{}
+data, _ := json.Marshal(u)
+fmt.Println(string(data)) // {"id":"tI0EMdDXpOcvvGLktob4Ug","mid":null}
+
+_ = json.Unmarshal(data, &u2)
+fmt.Println(u2.ID == u.ID) // true
 ```
