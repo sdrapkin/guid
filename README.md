@@ -1,4 +1,4 @@
-# guid
+# guid [![name](https://goreportcard.com/badge/github.com/sdrapkin/guid)](https://goreportcard.com/report/github.com/sdrapkin/guid)
 ## Fast cryptographically safe Guid generator for Go. By [Stan Drapkin](https://github.com/sdrapkin/).
 
 [Go playground](https://go.dev/play/p/l_Yj74HUpgl)
