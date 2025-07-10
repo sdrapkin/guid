@@ -510,6 +510,80 @@ func TestFromBytes(t *testing.T) {
 	}
 }
 
+func TestReader_Read(t *testing.T) {
+	isZeroChunk := func(chunk []byte) bool {
+		for _, v := range chunk {
+			if v != 0 {
+				return false
+			}
+		}
+		return true
+	}
+
+	hasZeroChunk := func(b []byte, clen int) bool {
+		for len(b) > 0 {
+			limit := min(clen, len(b))
+			if isZeroChunk(b[0:limit]) {
+				return true
+			}
+			b = b[limit:]
+		}
+		return false
+	}
+
+	const bufLen = 1024
+	buf := make([]byte, bufLen)
+	n, err := Reader.Read(buf)
+	if err != nil {
+		t.Fatalf("Reader.Read returned error: %v", err)
+	}
+	if n != bufLen {
+		t.Errorf("Reader.Read returned n=%d, want %d", n, bufLen)
+	}
+
+	const chunkLen = 8
+	if hasZeroChunk(buf, chunkLen) {
+		t.Errorf("Reader.Read buffer contains %d consecutive zero bytes", chunkLen)
+
+	}
+}
+
+func TestReadFunction(t *testing.T) {
+	const bufLen = 32
+	buf := make([]byte, bufLen)
+	n, err := Read(buf)
+	if err != nil {
+		t.Fatalf("Read returned error: %v", err)
+	}
+	if n != bufLen {
+		t.Errorf("Read returned n=%d, want %d", n, bufLen)
+	}
+}
+
+func TestDecodeBase64URL_LastByteInvalid(t *testing.T) {
+	src := make([]byte, GuidBase64UrlByteSize)
+	copy(src, "AAAAAAAAAAAAAAAAAAAA") // 20 valid chars
+	src[20] = '!'                     // invalid Base64Url
+	src[21] = '!'                     // invalid Base64Url
+
+	var g Guid
+	ok := DecodeBase64URL(g[:], src)
+	if ok {
+		t.Error("DecodeBase64URL should fail when final 2 chars are invalid")
+	}
+}
+
+func TestNewString(t *testing.T) {
+	s := NewString()
+	if len(s) != GuidBase64UrlByteSize {
+		t.Errorf("NewString() returned string of length %d, want %d", len(s), GuidBase64UrlByteSize)
+	}
+	_, err := Parse(s)
+	if err != nil {
+		t.Errorf("NewString() returned invalid Guid string: %v", err)
+	}
+}
+
 func FuzzParse(f *testing.F) {
 	// Add some valid and invalid seed cases
 	f.Add("AAAAAAAAAAAAAAAAAAAAAA")   // valid (Nil)

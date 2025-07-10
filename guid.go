@@ -76,6 +76,8 @@ type reader struct{}
 type guidCache struct {
 	buffer [guidCacheByteSize]byte
 	index  uint8
+	_      [63]byte // pad ensures each index is on its own cache line
+
 }
 
 //==============================================
@@ -185,7 +187,7 @@ func (guid *Guid) EncodeBase64URL(dst []byte) {
 //==============================================
 
 // Read fills b with cryptographically secure random bytes.
-// It never returns an error, and always fills b entirely.
+// It always fills b entirely, and returns len(b) and nil error.
 // guid.Read() is up to 7x faster than crypto/rand.Read() for small slices.
 // if b is > 512 bytes, it simply calls crypto/rand.Read().
 func (r *reader) Read(b []byte) (n int, err error) {
