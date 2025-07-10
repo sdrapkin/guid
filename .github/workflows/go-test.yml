@@ -20,7 +20,7 @@ jobs:
           go-version: 'stable'
           
       - name: Run tests in verbose mode
-        run: go test -v -coverprofile=coverage.txt ./...
+        run: go test -v -coverprofile="coverage.txt" ./...
 
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v5
