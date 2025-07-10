@@ -1,4 +1,4 @@
-# guid [![name](https://goreportcard.com/badge/github.com/sdrapkin/guid)](https://goreportcard.com/report/github.com/sdrapkin/guid) [![codecov](https://codecov.io/github/sdrapkin/guid/branch/master/graph/badge.svg?token=ARQFUQD5VP)](https://codecov.io/github/sdrapkin/guid)
+# guid [![name](https://goreportcard.com/badge/github.com/sdrapkin/guid)](https://goreportcard.com/report/github.com/sdrapkin/guid) [![codecov](https://codecov.io/github/sdrapkin/guid/branch/master/graph/badge.svg?token=ARQFUQD5VP)](https://codecov.io/github/sdrapkin/guid) [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go?tab=readme-ov-file#uuid) 
 ## Fast cryptographically safe Guid generator for Go. By [Stan Drapkin](https://github.com/sdrapkin/).
 
 [Go playground](https://go.dev/play/p/l_Yj74HUpgl)
