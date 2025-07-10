@@ -531,20 +531,21 @@ func TestReader_Read(t *testing.T) {
 		return false
 	}
 
-	const bufLen = 1024
-	buf := make([]byte, bufLen)
-	n, err := Reader.Read(buf)
-	if err != nil {
-		t.Fatalf("Reader.Read returned error: %v", err)
-	}
-	if n != bufLen {
-		t.Errorf("Reader.Read returned n=%d, want %d", n, bufLen)
-	}
+	for _, bufLen := range []int{0, 1, 8, 256, 511, 511, 511, 511, 512, 513} {
+		buf := make([]byte, bufLen)
+		n, err := Reader.Read(buf)
+		if err != nil {
+			t.Fatalf("Reader.Read returned error: %v", err)
+		}
+		if n != bufLen {
+			t.Errorf("Reader.Read returned n=%d, want %d", n, bufLen)
+		}
 
-	const chunkLen = 8
-	if hasZeroChunk(buf, chunkLen) {
-		t.Errorf("Reader.Read buffer contains %d consecutive zero bytes", chunkLen)
+		const chunkLen = 8
+		if hasZeroChunk(buf, chunkLen) {
+			t.Errorf("Reader.Read buffer contains %d consecutive zero bytes", chunkLen)
 
+		}
 	}
 }
 
