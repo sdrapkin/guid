@@ -531,7 +531,13 @@ func TestReader_Read(t *testing.T) {
 		return false
 	}
 
-	for _, bufLen := range []int{0, 1, 8, 256, 511, 511, 511, 511, 512, 513} {
+	bufLens := []int{}
+	for i := range 256 {
+		bufLens = append(bufLens, i)
+	}
+	bufLens = append(bufLens, 0, 1, 8, 256, 511, 511, 511, 511, 512, 513)
+
+	for _, bufLen := range bufLens {
 		buf := make([]byte, bufLen)
 		n, err := Reader.Read(buf)
 		if err != nil {
