@@ -145,7 +145,7 @@ func TestGuid_ToBase64Url_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestGuid_Marshalling_ZeroAndNilInputs(t *testing.T) {
+func TestGuid_Marshaling_ZeroAndNilInputs(t *testing.T) {
 	var g Guid
 
 	//--- UnmarshalBinary ---
@@ -419,7 +419,7 @@ func TestGuidParsePadding(t *testing.T) {
 	}
 }
 
-func TestGuidJSONMarshalling(t *testing.T) {
+func TestGuidJSONMarshaling(t *testing.T) {
 	// Define the structs with the correct JSON tags inside the test.
 	type wrapper1 struct {
 		ID Guid `json:"id"`
@@ -439,8 +439,8 @@ func TestGuidJSONMarshalling(t *testing.T) {
 		name         string // The name of the test case.
 		input        any    // The data to be marshalled.
 		expectedJSON string // Optional: The expected JSON output. If empty, not checked.
-		// A function to get a "clone" instance for unmarshalling.
-		// This ensures we're unmarshalling into a fresh variable.
+		// A function to get a "clone" instance for unmarshaling.
+		// This ensures we're unmarshaling into a fresh variable.
 		getClone func() any
 		// A function to compare the original input with the unmarshalled clone.
 		isEqual func(original, clone any) bool
@@ -568,26 +568,33 @@ func TestFromBytes(t *testing.T) {
 
 func TestReader_Read(t *testing.T) {
 	consecutiveByteCount := func(chunk []byte) int {
-		if len(chunk) == 0 {
-			return 0
+		if len(chunk) < 2 {
+			return len(chunk)
 		}
-		count := 1
-		var elem byte
+		maxRun := 1
+		currentRun := 1
 		for i := 1; i < len(chunk); i++ {
-			v := chunk[i]
-			if elem != v {
-				elem = v
-				count = 1
-				continue
+			if chunk[i] == chunk[i-1] {
+				// If the byte is the same as the last one, the run continues.
+				currentRun++
+			} else {
+				// The run was broken, so reset the current count.
+				currentRun = 1
 			}
-			count++
+
+			// Update the max run if the current one is larger.
+			if currentRun > maxRun {
+				maxRun = currentRun
+			}
 		}
-		return count
+		return maxRun
 	}
 
 	bufLens := []int{}
-	for i := range 257 {
-		bufLens = append(bufLens, i)
+	for range 10 {
+		for i := range 500 {
+			bufLens = append(bufLens, i)
+		}
 	}
 	bufLens = append(bufLens, 0, 1, 8, 256, 511, 511, 511, 511, 512, 513)
 
@@ -604,7 +611,6 @@ func TestReader_Read(t *testing.T) {
 		const chunkLen = 4
 		if consecutiveByteCount(buf) >= chunkLen {
 			t.Errorf("Reader.Read buffer contains %d consecutive bytes", chunkLen)
-
 		}
 	}
 }
