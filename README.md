@@ -1,5 +1,5 @@
-# guid [![name](https://goreportcard.com/badge/github.com/sdrapkin/guid)](https://goreportcard.com/report/github.com/sdrapkin/guid) [![codecov](https://codecov.io/github/sdrapkin/guid/branch/master/graph/badge.svg?token=ARQFUQD5VP)](https://codecov.io/github/sdrapkin/guid) [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go?tab=readme-ov-file#uuid) 
-## Fast cryptographically safe Guid generator for Go. By [Stan Drapkin](https://github.com/sdrapkin/).
+# guid [![name](https://goreportcard.com/badge/github.com/sdrapkin/guid)](https://goreportcard.com/report/github.com/sdrapkin/guid) [![codecov](https://codecov.io/github/sdrapkin/guid/branch/master/graph/badge.svg?token=ARQFUQD5VP)](https://codecov.io/github/sdrapkin/guid) [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#uuid) 
+## Fast cryptographically secure Guid generator for Go. By [Stan Drapkin](https://github.com/sdrapkin/).
 
 [Go playground](https://go.dev/play/p/l_Yj74HUpgl)
 ```go
@@ -47,7 +47,7 @@ Zo_hpnDxkOsAWLk1tIS6DA
 | Function | Description |
 |---|---|
 | `guid.New()`         | Generate a new Guid |
-| `guid.NewString()`   | Generate a new Guid as q Base64Url string |
+| `guid.NewString()`   | Generate a new Guid as a Base64Url string |
 | `guid.Parse(s)`      | Parse Base64Url string to Guid |
 | `guid.ParseBytes(b)` | Parse Base64Url bytes to Guid |
 | `guid.FromBytes(b)`  | Parse 16-byte slice to Guid |
@@ -128,31 +128,31 @@ cpu: Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz
 ```
 | Benchmarks guid [10 calls] | Time/op | Bytes/op | Allocs/op |
 |---|---|---|---|
-| guid_New_x10-8                          |  203.4 ns/op  |   0 B/op |  0 allocs/op | |
-| guid_NewString_x10-8                    |  582.4 ns/op  | 240 B/op | 10 allocs/op | |
-| guid_String_x10-8                       |  388.9 ns/op  | 240 B/op | 10 allocs/op | |
-| guid_New_Parallel_x10-8 🔥               |  62.45 ns/op  |   0 B/op |  0 allocs/op | |
-| guid_NewString_Parallel_x10-8           |  374.2 ns/op  | 240 B/op | 10 allocs/op | |
+| guid_New_x10-8                          |  203.4 ns/op  |   0 B/op |  0 allocs/op |
+| guid_NewString_x10-8                    |  582.4 ns/op  | 240 B/op | 10 allocs/op |
+| guid_String_x10-8                       |  388.9 ns/op  | 240 B/op | 10 allocs/op |
+| guid_New_Parallel_x10-8 🔥               |  62.45 ns/op  |   0 B/op |  0 allocs/op |
+| guid_NewString_Parallel_x10-8           |  374.2 ns/op  | 240 B/op | 10 allocs/op |
 
 ### Alternative library benchmarks:
 | Benchmarks nanoid [10 calls] | Time/op | Bytes/op | Allocs/op |
 |---|---|---|---|
-| nanoid_New_x10-8                        | 2493 ns/op    | 240 B/op | 10 allocs/op | |
-| nanoid_New_Parallel_x10-8               | 1282 ns/op    | 240 B/op | 10 allocs/op | |
+| nanoid_New_x10-8                        | 2493 ns/op    | 240 B/op | 10 allocs/op |
+| nanoid_New_Parallel_x10-8               | 1282 ns/op    | 240 B/op | 10 allocs/op |
 
 | Benchmarks uuid [10 calls] | Time/op | Bytes/op | Allocs/op |
 |---|---|---|---|
-| uuid_New_x10-8                          |  2216 ns/op   | 160 B/op | 10 allocs/op | |
-| uuid_New_RandPool_x10-8                 |  528.2 ns/op  |   0 B/op |  0 allocs/op | |
-| uuid_New_Parallel_x10-8                 |  1064 ns/op   | 160 B/op | 10 allocs/op | |
-| uuid_New_RandPool_Parallel_x10-8        |  1301 ns/op   |   0 B/op |  0 allocs/op | |
+| uuid_New_x10-8                          |  2216 ns/op   | 160 B/op | 10 allocs/op |
+| uuid_New_RandPool_x10-8                 |  528.2 ns/op  |   0 B/op |  0 allocs/op |
+| uuid_New_Parallel_x10-8                 |  1064 ns/op   | 160 B/op | 10 allocs/op |
+| uuid_New_RandPool_Parallel_x10-8        |  1301 ns/op   |   0 B/op |  0 allocs/op |
 
 | Benchmarks [20 guid encodings] | Time/op | Bytes/op | Allocs/op |
 |---|---|---|---|
-| guid_ToBase64UrlString-8                |  1025 ns/op   | 480 B/op | 20 allocs/op | |
-| base64_RawURLEncoding_EncodeToString-8  |  1867 ns/op   | 960 B/op | 40 allocs/op | |
-| guid_EncodeBase64URL-8                  |  392.0 ns/op  |   0 B/op |  0 allocs/op | |
-| base64_RawURLEncoding_Encode-8          |  463.4 ns/op  |   0 B/op |  0 allocs/op | |
+| guid_ToBase64UrlString-8                |  1025 ns/op   | 480 B/op | 20 allocs/op |
+| base64_RawURLEncoding_EncodeToString-8  |  1867 ns/op   | 960 B/op | 40 allocs/op |
+| guid_EncodeBase64URL-8                  |  392.0 ns/op  |   0 B/op |  0 allocs/op |
+| base64_RawURLEncoding_Encode-8          |  463.4 ns/op  |   0 B/op |  0 allocs/op |
 
 ## Documentation
  [![Go Reference](https://pkg.go.dev/badge/github.com/sdrapkin/guid.svg)](https://pkg.go.dev/github.com/sdrapkin/guid)
