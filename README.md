@@ -1,5 +1,5 @@
 # guid [![name](https://goreportcard.com/badge/github.com/sdrapkin/guid)](https://goreportcard.com/report/github.com/sdrapkin/guid) [![codecov](https://codecov.io/github/sdrapkin/guid/branch/master/graph/badge.svg?token=ARQFUQD5VP)](https://codecov.io/github/sdrapkin/guid) [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#uuid) 
-## Fast cryptographically secure Guid generator for Go. By [Stan Drapkin](https://github.com/sdrapkin/).
+## Fast cryptographically secure Guid generator for Go.<br>By [Stan Drapkin](https://github.com/sdrapkin/).
 
 [Go playground](https://go.dev/play/p/l_Yj74HUpgl)
 ```go
@@ -44,15 +44,31 @@ Zo_hpnDxkOsAWLk1tIS6DA
 * if your library is faster - please let me know!
 
 ## API Overview
-| Function | Description |
+| Functions | Description |
 |---|---|
-| `guid.New()`         | Generate a new Guid |
-| `guid.NewString()`   | Generate a new Guid as a Base64Url string |
-| `guid.Parse(s)`      | Parse Base64Url string to Guid |
-| `guid.ParseBytes(b)` | Parse Base64Url bytes to Guid |
-| `guid.FromBytes(b)`  | Parse 16-byte slice to Guid |
-| `guid.Read()` 🔥     | Faster alternative to `crypto/rand` |
-| `guid.Nil`           | The zero-value Guid |
+| `guid.New()` `Guid`           | Generate a new Guid |
+| `guid.NewString()` `string`   | Generate a new Guid as a Base64Url string |
+| `guid.NewPG()` `GuidPG`       | Generate a new PostgreSQL sequential Guid |
+| `guid.NewSS()` `GuidSS`       | Generate a new SQL Server sequential Guid |
+| `guid.Parse(s string)` `(Guid, error)` | Parse a Base64Url string into a Guid |
+| `guid.ParseBytes(src []byte)` `(Guid, error)` | Parse Base64Url bytes to a Guid |
+| `guid.FromBytes(src []byte)` `(Guid, error)`  | Parse 16-byte slice to a Guid |
+| `guid.DecodeBase64URL(dst []byte, src []byte)` `(ok bool)` | Decode a Base64Url slice into a Guid slice |
+| `guid.Reader` 🔥 implements `io.Reader`    | Faster alternative to `crypto/rand` |
+| guid.Nil                    | The zero-value Guid |
+
+| `Guid` methods | Description |
+|---|---|
+| `.String()` `string` | Encodes the Guid into Base64Url 22-char string `fmt.Stringer` |
+| `.EncodeBase64URL(dst []byte)` `error` | Like `.String()` but encodes into len(22) byte slice |
+| .MarshalBinary | Implements `encoding.BinaryMarshaler` |
+| .UnmarshalBinary | Implements `encoding.BinaryUnmarshaler` |
+| .MarshalText | Implements `encoding.TextMarshaler` |
+| .UnmarshalText | Implements `encoding.TextUnmarshaler` |
+
+| `GuidPG`, `GuidSS` methods | Description |
+|---|---|
+| `.Timestamp()` `time.Time` | Extracts the UTC timestamp |
 
 ## Sequential Guids 🔥
 `guid` includes two special types `GuidPG` and `GuidSS` optimized for use as database primary keys (PostgreSQL and SQL Server). Their time-ordered composition helps prevent index fragmentation and improves `INSERT` performance compared to fully random Guids. Note that sequential sorting is only across `time.Now()` timestamp precision.
@@ -118,7 +134,7 @@ uuid.SetRand(guid.Reader);
 | Benchmark_uuid_New_Parallel_RandPool_**guidRand**_x10-8 🔥 | 1185 ns/op  | 0 B/op        | 0 allocs/op    |
 
 
-## Guid Benchmarks
+## Guid Benchmarks [[raw](BENCHMARKS.md)]
 ```
 go test -bench=.* -benchtime=4s
 goos: windows
@@ -134,11 +150,22 @@ cpu: Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz
 | guid_New_Parallel_x10-8 🔥               |  62.45 ns/op  |   0 B/op |  0 allocs/op |
 | guid_NewString_Parallel_x10-8           |  374.2 ns/op  | 240 B/op | 10 allocs/op |
 
+## Sequential Guid Benchmarks
+| `guid.NewPG()` vs `uuid.NewV7()` [10 calls] | Time/op | |
+|---|---|---|
+| **guid.NewPG()_x10_Sequential** | **386.4 ns/op** |
+| uuid.NewV7()_x10_Sequential | 887.9 ns/op | 2.3x slower ⏳
+| **guid.NewPG()_x10_Parallel** | **144.3 ns/op** |
+| uuid.NewV7()_x10_Parallel | 2575 ns/op | 18x slower ⏳
+
+
 ### Alternative library benchmarks:
-| Benchmarks nanoid [10 calls] | Time/op | Bytes/op | Allocs/op |
+| Benchmarks nanoid v1.35 [10 calls] | Time/op | Bytes/op | Allocs/op |
 |---|---|---|---|
-| nanoid_New_x10-8                        | 2493 ns/op    | 240 B/op | 10 allocs/op |
-| nanoid_New_Parallel_x10-8               | 1282 ns/op    | 240 B/op | 10 allocs/op |
+| `guid.NewString()` x10 Sequential       | **609.9 ns/op**   | 240 B/op | 10 allocs/op |
+| `guid.NewString()` x10 Parallel (8 CPU) | **384.0 ns/op**   | 240 B/op | 10 allocs/op |
+| `nanoid.New()` x10 Sequential           | 2257 ns/op        | 240 B/op | 10 allocs/op |
+| `nanoid.New()` x10 Parallel (8 CPU)     | 1337 ns/op        | 240 B/op | 10 allocs/op |
 
 | Benchmarks uuid [10 calls] | Time/op | Bytes/op | Allocs/op |
 |---|---|---|---|
@@ -149,15 +176,18 @@ cpu: Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz
 
 | Benchmarks [20 guid encodings] | Time/op | Bytes/op | Allocs/op |
 |---|---|---|---|
-| guid_ToBase64UrlString-8                |  1025 ns/op   | 480 B/op | 20 allocs/op |
-| base64_RawURLEncoding_EncodeToString-8  |  1867 ns/op   | 960 B/op | 40 allocs/op |
-| guid_EncodeBase64URL-8                  |  392.0 ns/op  |   0 B/op |  0 allocs/op |
-| base64_RawURLEncoding_Encode-8          |  463.4 ns/op  |   0 B/op |  0 allocs/op |
+| g.String-8                |  1025 ns/op   | 480 B/op | 20 allocs/op |
+| base64.RawURLEncoding.EncodeToString-8  |  1867 ns/op   | 960 B/op | 40 allocs/op |
+| g.EncodeBase64URL-8                  |  392.0 ns/op  |   0 B/op |  0 allocs/op |
+| base64.RawURLEncoding.Encode-8          |  463.4 ns/op  |   0 B/op |  0 allocs/op |
 
 ## Documentation
  [![Go Reference](https://pkg.go.dev/badge/github.com/sdrapkin/guid.svg)](https://pkg.go.dev/github.com/sdrapkin/guid)
 
 Full `go doc` style documentation: https://pkg.go.dev/github.com/sdrapkin/guid
+
+## Requirements
+- Go 1.24+
 
 ## Installation
 ### Using `go get`
