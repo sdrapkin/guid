@@ -73,8 +73,10 @@ Zo_hpnDxkOsAWLk1tIS6DA
 ## Sequential Guids 🔥
 `guid` includes two special types `GuidPG` and `GuidSS` optimized for use as database primary keys (PostgreSQL and SQL Server). Their time-ordered composition helps prevent index fragmentation and improves `INSERT` performance compared to fully random Guids. Note that sequential sorting is only across `time.Now()` timestamp precision.
 
-* **`guid.NewPG()`**: Generates a `GuidPG`, which is sortable in **PostgreSQL**. It is structured as `[8-byte timestamp][8 random bytes]`.
-* **`guid.NewSS()`**: Generates a `GuidSS`, which is sortable in **SQL Server**. It is structured as `[8 random bytes][8-byte SQL Server-ordered timestamp]`.
+* **`guid.NewPG()`**: Generates a `GuidPG`, which is sortable in **PostgreSQL**.
+ 	- It is structured as `[8-byte timestamp][8 random bytes]`.
+* **`guid.NewSS()`**: Generates a `GuidSS`, which is sortable in **SQL Server**.
+	- It is structured as `[8 random bytes][8-byte SQL Server-ordered timestamp]`.
 * `.Timestamp()` on `GuidPG`/`GuidSS` returns Guid creation time as UTC `time.Time`.
 
 Both `GuidPG` and `GuidSS` are nearly as fast as `guid.New()`. They can be used as a standard `Guid` and support the same interfaces.
@@ -117,7 +119,7 @@ GFEU88w5PqTsYX0kcZzL6Q 185114f3cc393ea4ec617d24719ccbe9 yFIlRwKZJNo-pBhRFPPMOQ c
 * If you must keep using `google/uuid`, use `guid` to increase performance by **2~4x**:
 ```go
 // do this before using google/uuid
-uuid.SetRand(guid.Reader);
+uuid.SetRand(guid.Reader)
 ```
 
 ## uuid Benchmarks with and without `guid.Reader`
