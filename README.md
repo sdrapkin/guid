@@ -35,7 +35,7 @@ gxOQRIVR4B_uGHD6OP76XA
 Zo_hpnDxkOsAWLk1tIS6DA
 ```
 ---
-## Guid is ~10x faster than `github.com/google/uuid`
+## Guid is ~10x faster than `github.com/google/uuid` 🔥
 
 * `guid.New()` is  6~10 ns 
 * `guid.NewString()` is 40~60 ns
@@ -47,14 +47,78 @@ Zo_hpnDxkOsAWLk1tIS6DA
 | Function | Description |
 |---|---|
 | `guid.New()`         | Generate a new Guid |
-| `guid.NewString()`   | Generate a new Guid as Base64Url string |
+| `guid.NewString()`   | Generate a new Guid as q Base64Url string |
 | `guid.Parse(s)`      | Parse Base64Url string to Guid |
 | `guid.ParseBytes(b)` | Parse Base64Url bytes to Guid |
 | `guid.FromBytes(b)`  | Parse 16-byte slice to Guid |
-| `guid.Read()` 🔥       | Faster alternative to `crypto/rand` |
+| `guid.Read()` 🔥     | Faster alternative to `crypto/rand` |
 | `guid.Nil`           | The zero-value Guid |
 
-## Benchmarks
+## Sequential Guids 🔥
+`guid` includes two special types `GuidPG` and `GuidSS` optimized for use as database primary keys (PostgreSQL and SQL Server). Their time-ordered composition helps prevent index fragmentation and improves `INSERT` performance compared to fully random Guids. Note that sequential sorting is only across `time.Now()` timestamp presision.
+
+* **`guid.NewPG()`**: Generates a `GuidPG`, which is sortable in **PostgreSQL**. It is structured as `[8-byte timestamp][8 random bytes]`.
+* **`guid.NewSS()`**: Generates a `GuidSS`, which is sortable in **SQL Server**. It is structured as `[8 random bytes][8-byte SQL Server-ordered timestamp]`.
+* `.Timestamp()` on `GuidPG`/`GuidSS` returns Guid creation time as UTC `time.Time`.
+
+Both `GuidPG` and `GuidSS` are nearly as fast as `guid.New()`. They can be used as a standard `Guid` and support the same interfaces.
+
+***
+
+### Sequential Guid Example:
+
+```go
+fmt.Printf("%s\t       %s\t\t\t\t%s\t       %s\n",
+	"gpg.String()", "hex(gpg)", "gss.String()", "hex(gss)")
+for range 10 {
+	gpg := guid.NewPG()
+	gss := guid.NewSS()
+	fmt.Println(&gpg, hex.EncodeToString(gpg.Guid[:]), &gss, hex.EncodeToString(gss.Guid[:]))
+}
+
+gpg := guid.NewPG()
+gss := guid.NewSS()
+fmt.Println(gpg.Timestamp()) // time.Time
+fmt.Println(gss.Timestamp()) // time.Time
+```
+```
+gpg.String()           hex(gpg)                         gss.String()           hex(gss)
+GFEU88wgQvDlahOowSGTKA 185114f3cc2042f0e56a13a8c1219328 9SurLKL6ti2l0BhRFPPMKA f52bab2ca2fab62da5d0185114f3cc28
+GFEU88wopdChlFba89-4yg 185114f3cc28a5d0a19456daf3dfb8ca yTRE6Rr1gISl0BhRFPPMKA c93444e91af58084a5d0185114f3cc28
+GFEU88ww9fA01GntVDQ_4w 185114f3cc30f5f034d469ed54343fe3 8SaILyee6q718BhRFPPMMA f126882f279eeaaef5f0185114f3cc30
+GFEU88ww9fASNFzZQJpv7Q 185114f3cc30f5f012345cd9409a6fed xZ3KYLzqJ0f18BhRFPPMMA c59dca60bcea2747f5f0185114f3cc30
+GFEU88ww9fAHgWvjAmkQJw 185114f3cc30f5f007816be302691027 yEif2kTQBcD18BhRFPPMMA c8489fda44d005c0f5f0185114f3cc30
+GFEU88ww9fD4_Vm3PG5Vuw 185114f3cc30f5f0f8fd59b73c6e55bb SRKgSiCc-gL18BhRFPPMMA 4912a04a209cfa02f5f0185114f3cc30
+GFEU88ww9fDzO_One7T6BA 185114f3cc30f5f0f33bf3a77bb4fa04 rGr2czgQcmr18BhRFPPMMA ac6af6733810726af5f0185114f3cc30
+GFEU88w5PqQAifEi5tqoWQ 185114f3cc393ea40089f122e6daa859 5YYbiI3p7P4-pBhRFPPMOQ e5861b888de9ecfe3ea4185114f3cc39
+GFEU88w5PqSFkX4bmxSvMQ 185114f3cc393ea485917e1b9b14af31 PqUPeiyessU-pBhRFPPMOQ 3ea50f7a2c9eb2c53ea4185114f3cc39
+GFEU88w5PqTsYX0kcZzL6Q 185114f3cc393ea4ec617d24719ccbe9 yFIlRwKZJNo-pBhRFPPMOQ c8522547029924da3ea4185114f3cc39
+2025-07-11 03:32:47.3597457 +0000 UTC
+2025-07-11 03:32:47.3597457 +0000 UTC
+```
+
+## Interoperability with `google/uuid` 🔥
+* If you must keep using `google/uuid`, use `guid` to increase performance by **2~4x**:
+```go
+// do this before using google/uuid
+uuid.SetRand(guid.Reader);
+```
+
+## uuid Benchmarks with and without `guid.Reader`
+
+| Benchmark Name | Time per Op | Bytes per Op  | Allocs per Op  |
+|---|---|---|---|
+| Benchmark_uuid_New_x10-8                                   | 3031 ns/op  | 160 B/op      | 10 allocs/op   |
+| Benchmark_uuid_New_**guidRand**_x10-8 🔥                   | 862.0 ns/op | 160 B/op      | 10 allocs/op   |
+| Benchmark_uuid_New_RandPool_x10-8                          | 747.6 ns/op | 0 B/op        | 0 allocs/op    |
+| Benchmark_uuid_New_RandPool_**guidRand**_x10-8 🔥          | 516.8 ns/op | 0 B/op        | 0 allocs/op    |
+| Benchmark_uuid_New_Parallel_x10-8                          | 1230 ns/op  | 160 B/op      | 10 allocs/op   |
+| Benchmark_uuid_New_Parallel_**guidRand**_x10-8 🔥          | 510.0 ns/op | 160 B/op      | 10 allocs/op   |
+| Benchmark_uuid_New_Parallel_RandPool_x10-8                 | 1430 ns/op  | 0 B/op        | 0 allocs/op    |
+| Benchmark_uuid_New_Parallel_RandPool_**guidRand**_x10-8 🔥 | 1185 ns/op  | 0 B/op        | 0 allocs/op    |
+
+
+## Guid Benchmarks
 ```
 go test -bench=.* -benchtime=4s
 goos: windows
@@ -67,7 +131,7 @@ cpu: Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz
 | guid_New_x10-8                          |  203.4 ns/op  |   0 B/op |  0 allocs/op | |
 | guid_NewString_x10-8                    |  582.4 ns/op  | 240 B/op | 10 allocs/op | |
 | guid_String_x10-8                       |  388.9 ns/op  | 240 B/op | 10 allocs/op | |
-| guid_New_Parallel_x10-8                 |  62.45 ns/op  |   0 B/op |  0 allocs/op | |
+| guid_New_Parallel_x10-8 🔥               |  62.45 ns/op  |   0 B/op |  0 allocs/op | |
 | guid_NewString_Parallel_x10-8           |  374.2 ns/op  | 240 B/op | 10 allocs/op | |
 
 ### Alternative library benchmarks:

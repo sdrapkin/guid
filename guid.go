@@ -9,8 +9,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/bits"
 	"sync"
+	"time"
 	"unsafe"
+
+	"golang.org/x/sys/cpu"
 )
 
 //==============================================
@@ -45,6 +49,8 @@ var (
 	ErrInvalidBase64UrlGuidEncoding = errors.New("invalid Base64Url Guid encoding (invalid characters, or length != 22)")
 	// ErrInvalidGuidSlice is returned when a byte slice cannot represent a valid Guid (length < 16 bytes).
 	ErrInvalidGuidSlice = errors.New("invalid Guid slice (length < 16 bytes)")
+	// ErrBufferTooSmallBase64Url is returned when a destination slice is too small to receive the text-encoded Guid.
+	ErrBufferTooSmallBase64Url = fmt.Errorf("buffer is too small (length < %d bytes)", GuidBase64UrlByteSize)
 )
 
 //==============================================
@@ -66,6 +72,19 @@ var (
 
 // Guid is a 16-byte (128-bit) cryptographically random value.
 type Guid [GuidByteSize]byte
+
+// GuidPG is a 16-byte (128-bit) PostgreSQL sortable Guid formed as [8-byte time.Now() timestamp][8 random bytes]
+// GuidPG is optimized for use as a PostgreSQL index key.
+type GuidPG struct {
+	Guid // embedded
+}
+
+// GuidSS is a 16-byte (128-bit) SQL Server sortable Guid formed as [8 random bytes][8 bytes of SQL Server ordered time.Now() timestamp]
+// GuidSS is optimized for use as a SQL Server index or clustered key.
+type GuidSS struct {
+	Guid // embedded
+}
+
 type reader struct{}
 
 //==============================================
@@ -74,9 +93,9 @@ type reader struct{}
 
 // guidCache holds a 4096-byte buffer and a byte index for Guid allocation.
 type guidCache struct {
-	buffer [guidCacheByteSize]byte
+	buffer []byte //buffer [guidCacheByteSize]byte
 	index  uint8
-	_      [63]byte // pad ensures each index is on its own cache line
+	_      [32]byte // pad ensures each index is on its own cache line
 
 }
 
@@ -109,7 +128,7 @@ func (guid *Guid) UnmarshalText(data []byte) error {
 // MarshalText implements encoding.TextMarshaler.
 func (guid *Guid) MarshalText() ([]byte, error) {
 	buffer := make([]byte, GuidBase64UrlByteSize)
-	guid.EncodeBase64URL(buffer)
+	guid.encodeBase64URL(buffer)
 	return buffer, nil
 }
 
@@ -158,7 +177,16 @@ func (guid *Guid) String() string {
 }
 
 // EncodeBase64URL encodes the Guid into the provided dst as Base64Url.
-func (guid *Guid) EncodeBase64URL(dst []byte) {
+func (guid *Guid) EncodeBase64URL(dst []byte) error {
+	if len(dst) < GuidBase64UrlByteSize {
+		return ErrBufferTooSmallBase64Url
+	}
+	guid.encodeBase64URL(dst)
+	return nil
+}
+
+// private - panics on undersized buffer
+func (guid *Guid) encodeBase64URL(dst []byte) {
 	const lengthMod3 = 1                    // 16 % 3 = 1
 	const limit = GuidByteSize - lengthMod3 // 15 bytes can be processed in groups of 3 bytes, leaving 1 byte at the end.
 
@@ -190,7 +218,7 @@ func (guid *Guid) EncodeBase64URL(dst []byte) {
 // It always fills b entirely, and returns len(b) and nil error.
 // guid.Read() is up to 7x faster than crypto/rand.Read() for small slices.
 // if b is > 512 bytes, it simply calls crypto/rand.Read().
-func (r *reader) Read(b []byte) (n int, err error) {
+func (r reader) Read(b []byte) (n int, err error) {
 	const MaxBytesToFillViaGuids = 512
 	n = len(b)
 
@@ -206,7 +234,7 @@ func (r *reader) Read(b []byte) (n int, err error) {
 
 	if guidCacheRef.index == 0 {
 		// Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
-		cryptoRand.Read(guidCacheRef.buffer[:])
+		cryptoRand.Read(guidCacheRef.buffer)
 	}
 
 	n1 := copy(b, guidCacheRef.buffer[int(guidCacheRef.index)*GuidByteSize:])
@@ -219,8 +247,8 @@ func (r *reader) Read(b []byte) (n int, err error) {
 	}
 
 	// Case 2: Need to refill for remainder
-	cryptoRand.Read(guidCacheRef.buffer[:])
-	n2 := copy(b[n1:], guidCacheRef.buffer[:])
+	cryptoRand.Read(guidCacheRef.buffer)
+	n2 := copy(b[n1:], guidCacheRef.buffer)
 
 	if n1+n2 != n {
 		panic("guid: internal panic in reader.Read(); should never happen")
@@ -229,6 +257,35 @@ func (r *reader) Read(b []byte) (n int, err error) {
 	guidCachePool.Put(guidCacheRef)
 	return
 } //func (r *reader) Read
+
+//==============================================
+// GuidPG Extension Methods
+//==============================================
+
+// Timestamp extracts the timestamp from the PostgreSQL Guid.
+// The timestamp is stored in the first 8 bytes as nanoseconds since Unix epoch.
+// Returns the time.Time representation of when the Guid was created.
+func (g *GuidPG) Timestamp() time.Time {
+	timestamp := *(*int64)(unsafe.Pointer(&g.Guid[0])) // Extract timestamp from first 8 bytes
+
+	if !cpu.IsBigEndian {
+		timestamp = int64(bits.ReverseBytes64(uint64(timestamp)))
+	}
+	return time.Unix(0, timestamp).UTC()
+}
+
+//==============================================
+// GuidSS Extension Methods
+//==============================================
+
+// Timestamp extracts the timestamp from the SQL Server Guid.
+// The timestamp is stored in the last 8 bytes using SQL Server's Guid ordering rules.
+// Returns the time.Time representation of when the Guid was created.
+func (g *GuidSS) Timestamp() time.Time {
+	encoded := *(*uint64)(unsafe.Pointer(&g.Guid[8])) // Extract timestamp from last 8 bytes (SQL Server format)
+	timestamp := int64(bits.RotateLeft64(bits.ReverseBytes64(encoded), 16))
+	return time.Unix(0, timestamp).UTC()
+}
 
 //==============================================
 // Standalone Functions
@@ -240,7 +297,7 @@ func New() (g Guid) {
 
 	if guidCacheRef.index == 0 {
 		// Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
-		cryptoRand.Read(guidCacheRef.buffer[:])
+		cryptoRand.Read(guidCacheRef.buffer)
 	}
 
 	// Extract GUID at current index
@@ -249,6 +306,34 @@ func New() (g Guid) {
 
 	guidCacheRef.index++ // Increment index for next call, uint8 wraps from 255 to 0 automatically
 	guidCachePool.Put(guidCacheRef)
+	return
+}
+
+// NewPG generates a new PostgreSQL sortable Guid as [8-byte time.Now() timestamp][8 random bytes]
+func NewPG() GuidPG {
+	return newPG(time.Now().UnixNano())
+}
+
+func newPG(ts int64) (gpg GuidPG) {
+	gpg.Guid = New()
+	if !cpu.IsBigEndian {
+		ts = int64(bits.ReverseBytes64(uint64(ts)))
+	}
+	*(*uint64)(unsafe.Pointer(&gpg.Guid[0])) = uint64(ts)
+	return
+}
+
+// NewSS generates a new SQL Server sortable Guid as [8 random bytes][8 bytes of SQL Server ordered time.Now() timestamp]
+func NewSS() GuidSS {
+	return newSS(time.Now().UnixNano())
+}
+
+func newSS(ts int64) (gss GuidSS) {
+	// based on Microsoft SqlGuid.cs
+	// https://github.com/microsoft/referencesource/blob/5697c29004a34d80acdaf5742d7e699022c64ecd/System.Data/System/Data/SQLTypes/SQLGuid.cs
+	gss.Guid = New()
+	// we don't worry about big-endian, because SQL Server does not run on big-endian
+	*(*uint64)(unsafe.Pointer(&gss.Guid[8])) = bits.ReverseBytes64(bits.RotateLeft64(uint64(ts), -16))
 	return
 }
 
@@ -357,7 +442,7 @@ func Read(b []byte) (n int, err error) {
 // guidCachePool is a sync.Pool that holds guidCache instances.
 var guidCachePool = sync.Pool{
 	New: func() any {
-		return &guidCache{}
+		return &guidCache{buffer: make([]byte, guidCacheByteSize)}
 	},
 }
 
