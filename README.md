@@ -55,7 +55,7 @@ Zo_hpnDxkOsAWLk1tIS6DA
 | `guid.Nil`           | The zero-value Guid |
 
 ## Sequential Guids 🔥
-`guid` includes two special types `GuidPG` and `GuidSS` optimized for use as database primary keys (PostgreSQL and SQL Server). Their time-ordered composition helps prevent index fragmentation and improves `INSERT` performance compared to fully random Guids. Note that sequential sorting is only across `time.Now()` timestamp presision.
+`guid` includes two special types `GuidPG` and `GuidSS` optimized for use as database primary keys (PostgreSQL and SQL Server). Their time-ordered composition helps prevent index fragmentation and improves `INSERT` performance compared to fully random Guids. Note that sequential sorting is only across `time.Now()` timestamp precision.
 
 * **`guid.NewPG()`**: Generates a `GuidPG`, which is sortable in **PostgreSQL**. It is structured as `[8-byte timestamp][8 random bytes]`.
 * **`guid.NewSS()`**: Generates a `GuidSS`, which is sortable in **SQL Server**. It is structured as `[8 random bytes][8-byte SQL Server-ordered timestamp]`.
