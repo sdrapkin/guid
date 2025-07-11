@@ -22,11 +22,14 @@ import (
 //==============================================
 
 const (
-	GuidByteSize          = 16                                                                 // Size of a Guid in bytes
-	guidsPerCache         = 256                                                                // 256 Guids per cache - do not change this value
-	guidCacheByteSize     = GuidByteSize * guidsPerCache                                       // 4096 bytes per cache (256*16)
-	GuidBase64UrlByteSize = 22                                                                 // Base64Url encoding of a Guid is 22 characters
-	base64UrlAlphabet     = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_" // Base64Url alphabet used for encoding
+	GuidByteSize          = 16                           // Size of a Guid in bytes
+	guidsPerCache         = 256                          // 256 Guids per cache - do not change this value
+	guidCacheByteSize     = GuidByteSize * guidsPerCache // 4096 bytes per cache (256*16)
+	GuidBase64UrlByteSize = 22                           // Base64Url encoding of a Guid is 22 characters
+)
+
+const (
+	base64UrlAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_" // Base64Url alphabet used for encoding
 )
 
 // Ensure that the constants are not changed without thought.
@@ -93,10 +96,9 @@ type reader struct{}
 
 // guidCache holds a 4096-byte buffer and a byte index for Guid allocation.
 type guidCache struct {
-	buffer []byte //buffer [guidCacheByteSize]byte
+	buffer []byte
 	index  uint8
 	_      [32]byte // pad ensures each index is on its own cache line
-
 }
 
 //==============================================
