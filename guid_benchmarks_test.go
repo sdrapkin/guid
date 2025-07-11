@@ -333,7 +333,62 @@ func Benchmark_uuid_New_Parallel_RandPool_guidRand_x10(b *testing.B) {
 		}
 	})
 }
+
+func Benchmark_uuid_NewV7_RandPool_x10(b *testing.B) {
+	uuid.SetRand(nil)
+	uuid.EnableRandPool()
+	for b.Loop() {
+		_, _ = uuid.NewV7()
+		_, _ = uuid.NewV7()
+		_, _ = uuid.NewV7()
+		_, _ = uuid.NewV7()
+		_, _ = uuid.NewV7()
+		_, _ = uuid.NewV7()
+		_, _ = uuid.NewV7()
+		_, _ = uuid.NewV7()
+		_, _ = uuid.NewV7()
+		_, _ = uuid.NewV7()
+	}
+}
+
+func Benchmark_uuid_NewV7_Parallel_RandPool_x10(b *testing.B) {
+	uuid.SetRand(nil)
+	uuid.EnableRandPool()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_, _ = uuid.NewV7()
+			_, _ = uuid.NewV7()
+			_, _ = uuid.NewV7()
+			_, _ = uuid.NewV7()
+			_, _ = uuid.NewV7()
+			_, _ = uuid.NewV7()
+			_, _ = uuid.NewV7()
+			_, _ = uuid.NewV7()
+			_, _ = uuid.NewV7()
+			_, _ = uuid.NewV7()
+		}
+	})
+}
 */
+
+func Benchmark_guid_NewPG_Parallel_x10(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_ = NewPG()
+			_ = NewPG()
+			_ = NewPG()
+			_ = NewPG()
+			_ = NewPG()
+			_ = NewPG()
+			_ = NewPG()
+			_ = NewPG()
+			_ = NewPG()
+			_ = NewPG()
+		}
+	})
+}
+
+//*/
 
 var benchGuids []Guid
 
