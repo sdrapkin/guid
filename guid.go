@@ -1,5 +1,6 @@
-// Package guid provides fast, efficient, cryptographically secure GUID generation and manipulation.
-// It supports Base64Url encoding and decoding, and is optimized for performance.
+// Package guid provides fast, efficient, cryptographically secure 128-bit GUID generation and manipulation.
+// It supports Base64Url encoding/decoding, sequential sortable GUIDs (for PostgreSQL and SQL Server), and is optimized for performance.
+// It includes a high-throughput, drop-in replacement for crypto/rand.Reader for generating secure random bytes.
 package guid
 
 import (
@@ -61,12 +62,12 @@ var (
 //==============================================
 
 var (
-	_ fmt.Stringer               = (*Guid)(nil)
-	_ encoding.TextMarshaler     = (*Guid)(nil)
-	_ encoding.TextUnmarshaler   = (*Guid)(nil)
-	_ encoding.BinaryMarshaler   = (*Guid)(nil)
-	_ encoding.BinaryUnmarshaler = (*Guid)(nil)
-	_ io.Reader                  = (*reader)(nil)
+	_ fmt.Stringer               = &Guid{}
+	_ encoding.TextMarshaler     = &Guid{}
+	_ encoding.TextUnmarshaler   = &Guid{}
+	_ encoding.BinaryMarshaler   = Guid{}
+	_ encoding.BinaryUnmarshaler = &Guid{}
+	_ io.Reader                  = reader{}
 )
 
 //==============================================
@@ -88,7 +89,7 @@ type GuidSS struct {
 	Guid // embedded
 }
 
-type reader struct{}
+type reader struct{} // implements io.Reader interface
 
 //==============================================
 // Shared Variables
@@ -106,7 +107,7 @@ type guidCache struct {
 //==============================================
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface for Guid.
-func (guid *Guid) MarshalBinary() (data []byte, err error) {
+func (guid Guid) MarshalBinary() (data []byte, err error) {
 	return guid[:], nil
 }
 
@@ -145,7 +146,7 @@ func (g Guid) MarshalJSON() ([]byte, error) {
 func (g *Guid) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
-		return fmt.Errorf("guid: cannot unmarshal JSON string %s into a Guid: %w", string(data), err)
+		return fmt.Errorf("guid: cannot unmarshal JSON string %q into a Guid: %w", string(data), err)
 	}
 
 	parsedGuid, err := Parse(s)
@@ -159,7 +160,8 @@ func (g *Guid) UnmarshalJSON(data []byte) error {
 
 // String returns a Base64Url-encoded string representation of the Guid.
 func (guid *Guid) String() string {
-	buffer, _ := guid.MarshalText()
+	buffer := make([]byte, GuidBase64UrlByteSize)
+	guid.encodeBase64URL(buffer)
 	return unsafe.String(&buffer[0], GuidBase64UrlByteSize)
 
 	// Is it "safe" to use unsafe.String() here? Yes.
@@ -187,7 +189,7 @@ func (guid *Guid) EncodeBase64URL(dst []byte) error {
 	return nil
 }
 
-// private - panics on undersized buffer
+// private - panics on undersized buffer or nil guid
 func (guid *Guid) encodeBase64URL(dst []byte) {
 	const lengthMod3 = 1                    // 16 % 3 = 1
 	const limit = GuidByteSize - lengthMod3 // 15 bytes can be processed in groups of 3 bytes, leaving 1 byte at the end.
@@ -258,7 +260,7 @@ func (r reader) Read(b []byte) (n int, err error) {
 	guidCacheRef.index = byte((n2 + GuidByteSize - 1) / GuidByteSize)
 	guidCachePool.Put(guidCacheRef)
 	return
-} //func (r *reader) Read
+} //func (r reader) Read
 
 //==============================================
 // GuidPG Extension Methods

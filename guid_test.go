@@ -177,12 +177,20 @@ func TestGuid_Marshalling_ZeroAndNilInputs(t *testing.T) {
 
 	//--- MarshalBinary ---
 	t.Run("MarshalBinary", func(t *testing.T) {
-		bin, err := g.MarshalBinary()
+		g2 := New()
+		marshalledSlice, err := g2.MarshalBinary()
 		if err != nil {
 			t.Fatalf("expected no error but got: %v", err)
 		}
-		if len(bin) != GuidByteSize {
-			t.Errorf("got %d bytes, want %d", len(bin), GuidByteSize)
+		if len(marshalledSlice) != GuidByteSize {
+			t.Errorf("got %d bytes, want %d", len(marshalledSlice), GuidByteSize)
+		}
+		if !bytes.Equal(g2[:], marshalledSlice) {
+			t.Errorf("marshalled slice is not equal to the original guid")
+		}
+		g2[0]++
+		if bytes.Equal(g2[:], marshalledSlice) {
+			t.Errorf("changes to original guid propagate to the marshalled slice")
 		}
 	})
 
@@ -217,7 +225,9 @@ func TestGuid_Marshalling_ZeroAndNilInputs(t *testing.T) {
 			t.Errorf("got %d bytes, want 22", len(txt))
 		}
 	})
+}
 
+func TestGuid_Parse_and_ParseBytes(t *testing.T) {
 	//--- Parse and ParseBytes ---
 	t.Run("Parse", func(t *testing.T) {
 		if _, err := Parse(""); err == nil {
@@ -511,15 +521,22 @@ func TestGuidJSONMarshalling(t *testing.T) {
 		var g Guid
 
 		// Test with non-string JSON.
-		err := g.UnmarshalJSON([]byte("123"))
-		if err == nil {
+		if err := g.UnmarshalJSON([]byte("123")); err == nil {
 			t.Error("UnmarshalJSON should fail on non-string JSON")
 		}
 
 		// Test with an invalid Guid string.
-		err = g.UnmarshalJSON([]byte(`"not-a-guid"`))
-		if err == nil {
+		if err := g.UnmarshalJSON([]byte(`"not-a-guid"`)); err == nil {
 			t.Error("UnmarshalJSON should fail on invalid Guid string")
+		}
+
+		// Test with empty slice
+		if err := g.UnmarshalJSON([]byte{}); err == nil {
+			t.Error("UnmarshalJSON should fail on empty slice")
+		}
+		// Test with nil slice
+		if err := g.UnmarshalJSON(nil); err == nil {
+			t.Error("UnmarshalJSON should fail on nil slice")
 		}
 	})
 }
