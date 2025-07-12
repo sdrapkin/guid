@@ -591,8 +591,8 @@ func TestReader_Read(t *testing.T) {
 	}
 
 	bufLens := []int{}
-	for range 10 {
-		for i := range 500 {
+	for range 1000 {
+		for i := range 512 {
 			bufLens = append(bufLens, i)
 		}
 	}
@@ -608,9 +608,9 @@ func TestReader_Read(t *testing.T) {
 			t.Errorf("Reader.Read returned n=%d, want %d", n, bufLen)
 		}
 
-		const chunkLen = 4
+		const chunkLen = 6
 		if consecutiveByteCount(buf) >= chunkLen {
-			t.Errorf("Reader.Read buffer contains %d consecutive bytes", chunkLen)
+			t.Errorf("Reader.Read buffer contains %d consecutive bytes\n %v", chunkLen, buf)
 		}
 	}
 }

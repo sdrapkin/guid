@@ -194,6 +194,10 @@ func (guid *Guid) encodeBase64URL(dst []byte) {
 	const lengthMod3 = 1                    // 16 % 3 = 1
 	const limit = GuidByteSize - lengthMod3 // 15 bytes can be processed in groups of 3 bytes, leaving 1 byte at the end.
 
+	// Bounds Check Elimination
+	_ = guid[GuidByteSize-1]
+	_ = dst[GuidBase64UrlByteSize-1]
+
 	j := 0 // Index in the output buffer
 
 	// Process the first 15 bytes (5 groups of 3 bytes). Each 3-byte group is converted to 4 Base64Url characters.
@@ -236,28 +240,25 @@ func (r reader) Read(b []byte) (n int, err error) {
 
 	guidCacheRef := guidCachePool.Get().(*guidCache)
 
-	if guidCacheRef.index == 0 {
+	// Calculate the starting position for the copy.
+	startPos := int(guidCacheRef.index) * GuidByteSize
+
+	if n > (guidCacheByteSize - startPos) {
+		// Not enough bytes remaining: refill completely. Go 1.24+ guarantees crypto/rand.Read succeeds.
+		cryptoRand.Read(guidCacheRef.buffer)
+		guidCacheRef.index = 0
+		startPos = 0
+	} else if guidCacheRef.index == 0 {
 		// Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
 		cryptoRand.Read(guidCacheRef.buffer)
 	}
 
-	n1 := copy(b, guidCacheRef.buffer[int(guidCacheRef.index)*GuidByteSize:])
+	copy(b, guidCacheRef.buffer[startPos:])
 
-	if n1 == n {
-		// Case 1: Everything fit in one copy
-		guidCacheRef.index += byte((n1 + GuidByteSize - 1) / GuidByteSize)
-		guidCachePool.Put(guidCacheRef)
-		return
-	}
+	// Update the index based on the number of Guids consumed.
+	// The ceiling division ensures the index increments correctly for partial Guid consumption.
+	guidCacheRef.index += byte((n + GuidByteSize - 1) / GuidByteSize)
 
-	// Case 2: Need to refill for remainder
-	cryptoRand.Read(guidCacheRef.buffer)
-	n2 := copy(b[n1:], guidCacheRef.buffer)
-
-	if n1+n2 != n {
-		panic("guid: internal panic in reader.Read(); should never happen")
-	}
-	guidCacheRef.index = byte((n2 + GuidByteSize - 1) / GuidByteSize)
 	guidCachePool.Put(guidCacheRef)
 	return
 } //func (r reader) Read
@@ -306,7 +307,7 @@ func New() (g Guid) {
 
 	// Extract GUID at current index
 	startPos := int(guidCacheRef.index) * GuidByteSize
-	copy(g[:], guidCacheRef.buffer[startPos:startPos+GuidByteSize])
+	copy(g[:], guidCacheRef.buffer[startPos:])
 
 	guidCacheRef.index++ // Increment index for next call, uint8 wraps from 255 to 0 automatically
 	guidCachePool.Put(guidCacheRef)
@@ -399,6 +400,10 @@ func DecodeBase64URL(dst []byte, src []byte) (ok bool) {
 
 	const lengthMod3 = 1 // 16 % 3 = 1
 	const limit = GuidByteSize - lengthMod3
+
+	// Bounds Check Elimination:
+	_ = dst[GuidByteSize-1]
+	_ = src[GuidBase64UrlByteSize-1]
 
 	j := 0
 
