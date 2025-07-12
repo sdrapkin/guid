@@ -44,6 +44,7 @@ Zo_hpnDxkOsAWLk1tIS6DA
 * if your library is faster - please let me know!
 
 ## API Overview
+**All APIs are safe for concurrent use by multiple goroutines.**
 | Functions | Description |
 |---|---|
 | `guid.New()` `Guid`           | Generate a new Guid |
@@ -121,6 +122,9 @@ GFEU88w5PqTsYX0kcZzL6Q 185114f3cc393ea4ec617d24719ccbe9 yFIlRwKZJNo-pBhRFPPMOQ c
 // do this before using google/uuid
 uuid.SetRand(guid.Reader)
 ```
+## FIPS Compliant
+* **FIPS-140 compiant** (https://go.dev/doc/security/fips140)
+	* set `GODEBUG=fips140=on` environment variable
 
 ## uuid Benchmarks with and without `guid.Reader`
 
