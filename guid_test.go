@@ -421,10 +421,10 @@ func TestGuidParsePadding(t *testing.T) {
 
 func TestGuidJSONMarshaling(t *testing.T) {
 	// Define the structs with the correct JSON tags inside the test.
-	type wrapper1 struct {
+	type guidContainer struct {
 		ID Guid `json:"id"`
 	}
-	type wrapper2 struct {
+	type nullableGuidContainer struct {
 		ID *Guid `json:"id"`
 	}
 
@@ -447,45 +447,45 @@ func TestGuidJSONMarshaling(t *testing.T) {
 	}{
 		{
 			name:     "Wrapper with non-nil Guid",
-			input:    wrapper1{ID: New()},
-			getClone: func() any { return &wrapper1{} },
+			input:    guidContainer{ID: New()},
+			getClone: func() any { return &guidContainer{} },
 			isEqual: func(original, clone any) bool {
-				return original.(wrapper1).ID == clone.(*wrapper1).ID
+				return original.(guidContainer).ID == clone.(*guidContainer).ID
 			},
 		},
 		{
 			name:     "Wrapper with nil Guid",
-			input:    wrapper1{ID: Nil},
-			getClone: func() any { return &wrapper1{} },
+			input:    guidContainer{ID: Nil},
+			getClone: func() any { return &guidContainer{} },
 			isEqual: func(original, clone any) bool {
-				return original.(wrapper1).ID == clone.(*wrapper1).ID
+				return original.(guidContainer).ID == clone.(*guidContainer).ID
 			},
 		},
 		{
 			name:         "Wrapper with nil pointer to Guid",
-			input:        wrapper2{ID: nil},
+			input:        nullableGuidContainer{ID: nil},
 			expectedJSON: `{"id":null}`,
-			getClone:     func() any { return &wrapper2{ID: newGuidPtr()} },
+			getClone:     func() any { return &nullableGuidContainer{ID: newGuidPtr()} },
 			isEqual: func(original, clone any) bool {
 				// Both original and clone ID pointers should be nil.
-				return original.(wrapper2).ID == clone.(*wrapper2).ID
+				return original.(nullableGuidContainer).ID == clone.(*nullableGuidContainer).ID
 			},
 		},
 		{
 			name:         "Wrapper with pointer to nil Guid",
-			input:        wrapper2{ID: nilGuidPtr},
+			input:        nullableGuidContainer{ID: nilGuidPtr},
 			expectedJSON: `{"id":"AAAAAAAAAAAAAAAAAAAAAA"}`,
-			getClone:     func() any { return &wrapper2{ID: newGuidPtr()} },
+			getClone:     func() any { return &nullableGuidContainer{ID: newGuidPtr()} },
 			isEqual: func(original, clone any) bool {
-				return *original.(wrapper2).ID == *clone.(*wrapper2).ID
+				return *original.(nullableGuidContainer).ID == *clone.(*nullableGuidContainer).ID
 			},
 		},
 		{
 			name:     "Wrapper with pointer to non-nil Guid",
-			input:    wrapper2{ID: newGuidPtr()},
-			getClone: func() any { return &wrapper2{} },
+			input:    nullableGuidContainer{ID: newGuidPtr()},
+			getClone: func() any { return &nullableGuidContainer{} },
 			isEqual: func(original, clone any) bool {
-				return *original.(wrapper2).ID == *clone.(*wrapper2).ID
+				return *original.(nullableGuidContainer).ID == *clone.(*nullableGuidContainer).ID
 			},
 		},
 	}
