@@ -226,12 +226,12 @@ func (guid *Guid) encodeBase64URL(dst []byte) {
 // It always fills b entirely, and returns len(b) and nil error.
 // guid.Read() is up to 7x faster than crypto/rand.Read() for small slices.
 // if b is > 512 bytes, it simply calls crypto/rand.Read().
-func (r reader) Read(b []byte) (n int, err error) {
+func (r reader) Read(b []byte) (int, error) {
 	const MaxBytesToFillViaGuids = 512
-	n = len(b)
+	n := len(b)
 
 	if n == 0 {
-		return
+		return 0, nil
 	}
 
 	if n > MaxBytesToFillViaGuids {
@@ -240,27 +240,21 @@ func (r reader) Read(b []byte) (n int, err error) {
 
 	guidCacheRef := guidCachePool.Get().(*guidCache)
 
-	// Calculate the starting position for the copy.
-	startPos := int(guidCacheRef.index) * GuidByteSize
-
-	if n > (guidCacheByteSize - startPos) {
-		// Not enough bytes remaining: refill completely. Go 1.24+ guarantees crypto/rand.Read succeeds.
-		cryptoRand.Read(guidCacheRef.buffer)
+	if n > (guidCacheByteSize - int(guidCacheRef.index)*GuidByteSize) {
+		cryptoRand.Read(guidCacheRef.buffer) // Not enough bytes remaining: refill completely. Go 1.24+ guarantees crypto/rand.Read succeeds.
 		guidCacheRef.index = 0
-		startPos = 0
 	} else if guidCacheRef.index == 0 {
-		// Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
-		cryptoRand.Read(guidCacheRef.buffer)
+		cryptoRand.Read(guidCacheRef.buffer) // Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
 	}
 
-	copy(b, guidCacheRef.buffer[startPos:])
+	copy(b, guidCacheRef.buffer[int(guidCacheRef.index)*GuidByteSize:])
 
 	// Update the index based on the number of Guids consumed.
 	// The ceiling division ensures the index increments correctly for partial Guid consumption.
 	guidCacheRef.index += byte((n + GuidByteSize - 1) / GuidByteSize)
 
 	guidCachePool.Put(guidCacheRef)
-	return
+	return n, nil
 } //func (r reader) Read
 
 //==============================================
