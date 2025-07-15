@@ -388,8 +388,6 @@ func Benchmark_guid_NewPG_Parallel_x10(b *testing.B) {
 	})
 }
 
-//*/
-
 var benchGuids []Guid
 
 func setupBenchGuids() {
@@ -442,6 +440,23 @@ func Benchmark_base64_RawURLEncoding_Encode_x20(b *testing.B) {
 		for _, g := range benchGuids {
 			base64.RawURLEncoding.Encode(buffer, g[:])
 		}
+	}
+}
+
+func Benchmark_Concurrent_CachePool_GetPut(b *testing.B) {
+	b.ReportAllocs()
+	goroutineCounts := []int{1, 2, 4, 8, 16, 32, 64}
+	for _, count := range goroutineCounts {
+		benchName := fmt.Sprintf("G%d", count)
+		b.Run(benchName, func(b *testing.B) {
+			b.SetParallelism(count)
+			b.ResetTimer()
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					_CachePool_GetPut()
+				}
+			})
+		})
 	}
 }
 
