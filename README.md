@@ -1,6 +1,8 @@
 # guid [![name](https://goreportcard.com/badge/github.com/sdrapkin/guid)](https://goreportcard.com/report/github.com/sdrapkin/guid) [![codecov](https://codecov.io/github/sdrapkin/guid/branch/master/graph/badge.svg?token=ARQFUQD5VP)](https://codecov.io/github/sdrapkin/guid) [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#uuid) 
 ## Fast cryptographically secure Guid generator for Go.<br>By [Stan Drapkin](https://github.com/sdrapkin/).
 
+`Guid` is defined as `type Guid [16]byte` and filled with 128 cryptographically strong bits.
+
 [Go playground](https://go.dev/play/p/l_Yj74HUpgl)
 ```go
 package main
@@ -34,7 +36,19 @@ AOp8Voi5knpu1mg3RjzmSg
 gxOQRIVR4B_uGHD6OP76XA
 Zo_hpnDxkOsAWLk1tIS6DA
 ```
----
+
+## Why `guid`? 🔥
+
+`guid` is a high-performance, cryptographically secure UUID/GUID (Globally Unique Identifier) generator for Go. It's built for speed without compromising on security, offering a significant performance advantage—up to **10x faster** than `github.com/google/uuid`.
+
+Beyond raw speed, `guid` offers:
+
+* **Cryptographically Strong**: Generates 128 cryptographically secure bits for robust, unique identifiers.
+* **Optimized for Databases**: Includes special `GuidPG` and `GuidSS` types that generate sequential Guids, dramatically improving `INSERT` performance and preventing index fragmentation in PostgreSQL and SQL Server databases.
+* **Seamless Interoperability**: Easily integrate with existing `google/uuid` codebases, and even boost `uuid`'s performance by up to **4x** using `guid.Reader`.
+* **FIPS 140 Compliant**: Ensures adherence to stringent security standards.
+* **Zero Allocations for Core Operations**: `guid.New()` generates new Guids with no memory allocations, making it incredibly efficient.
+
 ## Guid is ~10x faster than `github.com/google/uuid` 🔥
 
 * `guid.New()` is  6~10 ns 
@@ -62,10 +76,10 @@ Zo_hpnDxkOsAWLk1tIS6DA
 |---|---|
 | `.String()` `string` | Encodes the Guid into Base64Url 22-char string `fmt.Stringer` |
 | `.EncodeBase64URL(dst []byte)` `error` | Like `.String()` but encodes into len(22) byte slice |
-| .MarshalBinary | Implements `encoding.BinaryMarshaler` |
-| .UnmarshalBinary | Implements `encoding.BinaryUnmarshaler` |
-| .MarshalText | Implements `encoding.TextMarshaler` |
-| .UnmarshalText | Implements `encoding.TextUnmarshaler` |
+| .MarshalBinary() | Implements `encoding.BinaryMarshaler` |
+| .UnmarshalBinary() | Implements `encoding.BinaryUnmarshaler` |
+| .MarshalText() | Implements `encoding.TextMarshaler` |
+| .UnmarshalText() | Implements `encoding.TextUnmarshaler` |
 
 | `GuidPG`, `GuidSS` methods | Description |
 |---|---|
@@ -122,8 +136,30 @@ GFEU88w5PqTsYX0kcZzL6Q 185114f3cc393ea4ec617d24719ccbe9 yFIlRwKZJNo-pBhRFPPMOQ c
 // do this before using google/uuid
 uuid.SetRand(guid.Reader)
 ```
+* Quick conversions between `guid` and `google/uuid` if you need `uuid` behavior:
+```go
+g := guid.New()
+gpg := guid.NewPG()
+gss := guid.NewSS()
+
+var u uuid.UUID
+
+u = uuid.UUID(g)
+fmt.Println(u)
+
+u = uuid.UUID(gpg.Guid)
+fmt.Println(u)
+
+u = uuid.UUID(gss.Guid)
+fmt.Println(u)
+```
+```go
+2dfc2275-71e1-776b-e6a3-5818c9b16976
+18527f09-d2d9-e458-2611-7c8f416e2e8b
+c4abc00d-bea3-7626-e458-18527f09d2d9
+```
 ## FIPS Compliant
-* **FIPS-140 compiant** (https://go.dev/doc/security/fips140)
+* **FIPS-140 compliant** (https://go.dev/doc/security/fips140)
 	* set `GODEBUG=fips140=on` environment variable
 
 ## uuid Benchmarks with and without `guid.Reader`
@@ -215,7 +251,7 @@ import "github.com/sdrapkin/guid"
 
 - Value fields serialize as 22-character Base64Url strings.
 - Pointer fields serialize as strings or `null` (for nil pointers).
-- Zero-value GUIDs (`guid.Nil`) are handled correctly.
+- Zero-value Guids (`guid.Nil`) are handled correctly.
 
 ### Example: JSON Marshalling
 ```go
