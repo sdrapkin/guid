@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -17,7 +18,7 @@ import (
 //
 // go test -v -coverprofile="coverage.txt"
 // go tool cover -func=coverage.txt
-// go tool cover -html=coverage.txt
+// go tool cover -html="coverage.txt"
 // gocyclo -over 15 .
 // go test -bench=".*" -benchmem -benchtime=4s
 //*******************
@@ -311,6 +312,16 @@ func TestParseAndDecodeBase64URL(t *testing.T) {
 	}
 }
 
+func TestMax(t *testing.T) {
+	gmax := Guid{}
+	for i := range len(gmax) {
+		gmax[i] = 0xFF
+	}
+	if gmax != Max {
+		t.Error("guid.Max is wrong!")
+	}
+}
+
 func TestNilGuidBehavior(t *testing.T) {
 	var nilGuid Guid
 	if nilGuid != Nil {
@@ -541,6 +552,79 @@ func TestGuidJSONMarshaling(t *testing.T) {
 	})
 }
 
+var testUUID, _ = Parse("FBzYOSdp3VEBK7jzXPZleA")
+
+func TestJSON(t *testing.T) {
+	type S struct {
+		ID1 Guid
+		ID2 Guid
+	}
+	s1 := S{ID1: testUUID}
+	data, err := json.Marshal(&s1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var s2 S
+	if err := json.Unmarshal(data, &s2); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(&s1, &s2) {
+		t.Errorf("got %#v, want %#v", s2, s1)
+	}
+}
+
+func TestJSONUnmarshal(t *testing.T) {
+	type S struct {
+		ID1 Guid
+		ID2 Guid `json:"ID2,omitempty"`
+	}
+
+	testCases := map[string]struct {
+		data           []byte
+		expectedError  bool
+		expectedResult Guid
+	}{
+		"success": {
+			data:           []byte(`{"ID1": "FBzYOSdp3VEBK7jzXPZleA"}`),
+			expectedError:  false,
+			expectedResult: testUUID,
+		},
+		"zero": {
+			data:           []byte(`{"ID1": "AAAAAAAAAAAAAAAAAAAAAA"}`),
+			expectedError:  false,
+			expectedResult: Nil,
+		},
+		"null": {
+			data:           []byte(`{"ID1": null}`),
+			expectedError:  false,
+			expectedResult: Nil,
+		},
+		"empty": {
+			data:           []byte(`{"ID1": ""}`),
+			expectedError:  true,
+			expectedResult: Nil,
+		},
+		"omitempty": {
+			data:           []byte(`{"ID2": ""}`),
+			expectedError:  true,
+			expectedResult: Nil,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			var s S
+			err := json.Unmarshal(tc.data, &s)
+			if err != nil && !tc.expectedError {
+				t.Errorf("unexpected error: got %v, want %v", err, tc.expectedError)
+			}
+			if !reflect.DeepEqual(s.ID1, tc.expectedResult) {
+				t.Errorf("got %#v, want %#v", s.ID1, tc.expectedResult)
+			}
+		})
+	}
+}
+
 func TestFromBytes(t *testing.T) {
 	g1 := New()
 	g2, err := FromBytes(g1[:])
@@ -563,6 +647,17 @@ func TestFromBytes(t *testing.T) {
 	}
 	if g2 != g1 {
 		t.Errorf("FromBytes mismatch: got %v, want %v", g2, g1)
+	}
+
+	b := []byte{0x7d, 0x44, 0x48, 0x40, 0x9d, 0xc0, 0x11, 0xd1, 0xb2, 0x45, 0x5f, 0xfd, 0xce, 0x74, 0xfa, 0xd2}
+	g2, err = FromBytes(b)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	for i := range len(g2) {
+		if b[i] != g2[i] {
+			t.Fatalf("FromBytes() got %v expected %v\n", g2[:], b)
+		}
 	}
 }
 
@@ -624,6 +719,55 @@ func TestReadFunction(t *testing.T) {
 	}
 	if n != bufLen {
 		t.Errorf("Read returned n=%d, want %d", n, bufLen)
+	}
+}
+
+// TestReadConcurrent tests that concurrent calls to Read(buf) will not create identical values
+func TestReadConcurrent(t *testing.T) {
+	groutines := 32
+
+	doneChan := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(groutines)
+	entropyMaps := make([]map[string]struct{}, groutines)
+	for i := range groutines {
+		entropyMaps[i] = make(map[string]struct{})
+		go func(i int) {
+			buf := make([]byte, 16)
+			for {
+				select {
+				case <-doneChan:
+					wg.Done()
+					return
+				default:
+				} //select
+
+				Read(buf)
+				bufStr := string(buf)
+				_, exists := entropyMaps[i][bufStr]
+				if exists {
+					t.Error("got the same entropy twice out of the reader")
+				}
+				entropyMaps[i][bufStr] = struct{}{}
+			} //for
+		}(i)
+	}
+
+	// Let the threads spin for a bit, then shut them down.
+	time.Sleep(time.Millisecond * 750)
+	close(doneChan)
+	wg.Wait()
+
+	// Compare the entropy collected and verify that no set was output twice.
+	allEntropy := make(map[string]struct{})
+	for _, entropy := range entropyMaps {
+		for str := range entropy {
+			_, exists := allEntropy[str]
+			if exists {
+				t.Error("got the same entropy twice out of the reader")
+			}
+			allEntropy[str] = struct{}{}
+		}
 	}
 }
 
@@ -720,6 +864,19 @@ func TestSortableGuids(t *testing.T) {
 			t.Error("NewPG() and NewSS() produced the same Guid, which is highly unlikely and may indicate a problem.")
 		}
 	})
+} // TestSortableGuids()
+
+func TestCachePoolGetPut(t *testing.T) {
+	// Test internal func to get 100% code coverage
+	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("unexpected _CachePool panic: %q", r)
+		}
+	}()
+	for range 10 {
+		_CachePool_GetPut()
+	}
 }
 
 func FuzzParse(f *testing.F) {

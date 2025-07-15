@@ -6,7 +6,6 @@ package guid
 import (
 	cryptoRand "crypto/rand"
 	"encoding"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -42,8 +41,15 @@ var _ = map[bool]int{false: 0, guidCacheByteSize == 4096: 1}
 //==============================================
 
 var (
-	// Empty Guid (zero value for Guid)
-	Nil Guid
+	_minGuid Guid
+	_maxGuid Guid = Guid{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+)
+
+var (
+	// Nil is the nil Guid, with all 128 bits set to zero.
+	Nil Guid = _minGuid
+	// Max is the maximum Guid, with all 128 bits set to one.
+	Max Guid = _maxGuid
 	// Reader is a global, shared instance of a cryptographically secure random number generator. It is safe for concurrent use.
 	Reader reader
 )
@@ -138,23 +144,24 @@ func (guid *Guid) MarshalText() ([]byte, error) {
 // MarshalJSON implements the json.Marshaler interface.
 // It marshals the Guid to its Base64Url string representation.
 func (g Guid) MarshalJSON() ([]byte, error) {
-	return json.Marshal(g.String())
+	//return json.Marshal(g.String())
+	gStringWithQuotes := make([]byte, GuidBase64UrlByteSize+2)
+	gStringWithQuotes[1+GuidBase64UrlByteSize], gStringWithQuotes[0] = '"', '"'
+	g.encodeBase64URL(gStringWithQuotes[1 : 1+GuidBase64UrlByteSize])
+	return gStringWithQuotes, nil
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface.
 // It unmarshals a JSON string into a Guid.
 func (g *Guid) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return fmt.Errorf("guid: cannot unmarshal JSON string %q into a Guid: %w", string(data), err)
+	if string(data) == "null" {
+		*g = Guid{}
+		return nil // valid null Guid
 	}
 
-	parsedGuid, err := Parse(s)
-	if err != nil {
-		return err // The error from Parse is already informative.
+	if len(data) != (GuidBase64UrlByteSize+2) || !DecodeBase64URL(g[:], data[1:1+GuidBase64UrlByteSize]) {
+		return fmt.Errorf("guid: cannot unmarshal JSON string %q into a Guid", string(data))
 	}
-
-	*g = parsedGuid
 	return nil
 }
 
@@ -295,17 +302,20 @@ func New() (g Guid) {
 	guidCacheRef := guidCachePool.Get().(*guidCache)
 
 	if guidCacheRef.index == 0 {
-		// Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
-		cryptoRand.Read(guidCacheRef.buffer)
+		cryptoRand.Read(guidCacheRef.buffer) // Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
 	}
 
-	// Extract GUID at current index
-	startPos := int(guidCacheRef.index) * GuidByteSize
-	copy(g[:], guidCacheRef.buffer[startPos:])
+	copy(g[:], guidCacheRef.buffer[int(guidCacheRef.index)*GuidByteSize:]) // Extract GUID at current index
 
 	guidCacheRef.index++ // Increment index for next call, uint8 wraps from 255 to 0 automatically
 	guidCachePool.Put(guidCacheRef)
 	return
+}
+
+// Used as a benchmark baseline
+func _CachePool_GetPut() {
+	guidCacheRef := guidCachePool.Get().(*guidCache)
+	guidCachePool.Put(guidCacheRef)
 }
 
 // NewPG generates a new PostgreSQL sortable Guid as [8-byte time.Now() timestamp][8 random bytes]
