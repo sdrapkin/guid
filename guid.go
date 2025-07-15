@@ -318,6 +318,8 @@ func _CachePool_GetPut() {
 	guidCachePool.Put(guidCacheRef)
 }
 
+var _ = _CachePool_GetPut
+
 // NewPG generates a new PostgreSQL sortable Guid as [8-byte time.Now() timestamp][8 random bytes]
 func NewPG() GuidPG {
 	return newPG(time.Now().UnixNano())
