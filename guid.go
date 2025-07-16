@@ -51,7 +51,7 @@ var (
 	// Max is the maximum Guid, with all 128 bits set to one.
 	Max Guid = _maxGuid
 	// Reader is a global, shared instance of a cryptographically secure random number generator. It is safe for concurrent use.
-	Reader reader
+	Reader reader = _reader
 )
 
 var (
@@ -96,6 +96,7 @@ type GuidSS struct {
 }
 
 type reader struct{} // implements io.Reader interface
+var _reader reader = reader{}
 
 //==============================================
 // Shared Variables
