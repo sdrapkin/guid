@@ -764,6 +764,58 @@ func TestReadConcurrent(t *testing.T) {
 		for str := range entropy {
 			_, exists := allEntropy[str]
 			if exists {
+				t.Error("got the same entropy twice out of guid.Reader")
+			}
+			allEntropy[str] = struct{}{}
+		}
+	}
+}
+
+// TestReadLiteConcurrent tests that concurrent calls to ReaderLite.Read(buf) will not create identical values
+func TestReadLiteConcurrent(t *testing.T) {
+	_readerLite.Read(nil) // should not panic
+
+	groutines := 32
+	doneChan := make(chan struct{})
+
+	var wg sync.WaitGroup
+	wg.Add(groutines)
+
+	entropyMaps := make([]map[string]struct{}, groutines)
+	for i := range groutines {
+		entropyMaps[i] = make(map[string]struct{})
+		go func(i int) {
+			buf := make([]byte, 16)
+			for {
+				select {
+				case <-doneChan:
+					wg.Done()
+					return
+				default:
+				} //select
+
+				_readerLite.Read(buf)
+				bufStr := string(buf)
+				_, exists := entropyMaps[i][bufStr]
+				if exists {
+					t.Error("got the same entropy twice out of guid.ReaderLite")
+				}
+				entropyMaps[i][bufStr] = struct{}{}
+			} //for
+		}(i)
+	}
+
+	// Let the threads spin for a bit, then shut them down.
+	time.Sleep(time.Millisecond * 750)
+	close(doneChan)
+	wg.Wait()
+
+	// Compare the entropy collected and verify that no set was output twice.
+	allEntropy := make(map[string]struct{})
+	for _, entropy := range entropyMaps {
+		for str := range entropy {
+			_, exists := allEntropy[str]
+			if exists {
 				t.Error("got the same entropy twice out of the reader")
 			}
 			allEntropy[str] = struct{}{}
