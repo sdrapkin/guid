@@ -144,23 +144,30 @@ gss := guid.NewSS()
 
 var u uuid.UUID
 
-u = uuid.UUID(g)
+u = uuid.UUID(g) // copy by value
 fmt.Println(u)
 
-u = uuid.UUID(gpg.Guid)
+u = uuid.UUID(gpg.Guid) // copy by value
 fmt.Println(u)
 
-u = uuid.UUID(gss.Guid)
+u = uuid.UUID(gss.Guid) // copy by value
 fmt.Println(u)
+
+uptr := (*uuid.UUID)(unsafe.Pointer(&g)) // zero-copy cast
+g[0], g[1] = 0xAB, 0xCD
+fmt.Println(uptr)
 ```
 ```go
-2dfc2275-71e1-776b-e6a3-5818c9b16976
-18527f09-d2d9-e458-2611-7c8f416e2e8b
-c4abc00d-bea3-7626-e458-18527f09d2d9
+05166521-a124-9d0c-cb11-7f0cbf3a030c
+1852e32a-5aac-bb9c-bffc-b330606813af
+7e8badae-57f8-c88d-bb9c-1852e32a5aac
+abcd6521-a124-9d0c-cb11-7f0cbf3a030c
 ```
-## FIPS Compliant
-* **FIPS-140 compliant** (https://go.dev/doc/security/fips140)
+
+## FIPS Ready
+* **FIPS-140 ready** (https://go.dev/doc/security/fips140)
 	* set `GODEBUG=fips140=on` environment variable
+	* https://go.dev/blog/fips140
 
 ## uuid Benchmarks with and without `guid.Reader`
 
