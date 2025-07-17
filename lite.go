@@ -10,6 +10,8 @@ type readerLite struct{}       // implements io.Reader interface
 var _ io.Reader = readerLite{} //Compile-time interface assertion
 var _readerLite readerLite = readerLite{}
 
+/* commented out, since there is currently no good reason to export this ChaCha8-based Reader
+
 // ReaderLite is a high-throughput source of cryptographically secure random bytes.
 // It uses ChaCha8 cryptographically strong prng from "math/rand/v2".
 // Each pooled instance is seeded with a 256-bit key from "crypto/rand".
@@ -18,6 +20,7 @@ var _readerLite readerLite = readerLite{}
 // https://github.com/C2SP/C2SP/blob/main/chacha8rand.md
 // https://go.dev/blog/chacha8rand#the-chacha8rand-generator
 var ReaderLite readerLite = _readerLite
+*/
 
 // liteRandPool is a sync.Pool for recycling "*mathRandv2.ChaCha8" instances.
 // This reduces the overhead of repeatedly allocating and garbage collecting PRNGs.

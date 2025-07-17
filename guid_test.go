@@ -773,11 +773,14 @@ func TestReadConcurrent(t *testing.T) {
 
 // TestReadLiteConcurrent tests that concurrent calls to ReaderLite.Read(buf) will not create identical values
 func TestReadLiteConcurrent(t *testing.T) {
-	groutines := 32
+	_readerLite.Read(nil) // should not panic
 
+	groutines := 32
 	doneChan := make(chan struct{})
+
 	var wg sync.WaitGroup
 	wg.Add(groutines)
+
 	entropyMaps := make([]map[string]struct{}, groutines)
 	for i := range groutines {
 		entropyMaps[i] = make(map[string]struct{})
@@ -791,7 +794,7 @@ func TestReadLiteConcurrent(t *testing.T) {
 				default:
 				} //select
 
-				ReaderLite.Read(buf)
+				_readerLite.Read(buf)
 				bufStr := string(buf)
 				_, exists := entropyMaps[i][bufStr]
 				if exists {
