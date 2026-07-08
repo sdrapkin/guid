@@ -573,7 +573,7 @@ func TestJSON(t *testing.T) {
 	}
 }
 
-func TestJSONUnmarshal(t *testing.T) {
+func TestUnmarshalJSON(t *testing.T) {
 	type S struct {
 		ID1 Guid
 		ID2 Guid `json:"ID2,omitempty"`
@@ -609,6 +609,11 @@ func TestJSONUnmarshal(t *testing.T) {
 			expectedError:  true,
 			expectedResult: Nil,
 		},
+		"reject-unquoted": {
+			data:           []byte(`{"ID1": 1234567890123456789012}`),
+			expectedError:  true,
+			expectedResult: Nil,
+		},
 	}
 
 	for name, tc := range testCases {
@@ -623,6 +628,39 @@ func TestJSONUnmarshal(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("UnmarshalJSON direct-call edge cases", func(t *testing.T) {
+		cases := []struct {
+			name string
+			in   []byte
+		}{
+			{"unquoted 22-char token", []byte("1234567890123456789012")},
+			{"missing closing quote", []byte(`"AAAAAAAAAAAAAAAAAAAAAA`)},
+			{"missing opening quote", []byte(`AAAAAAAAAAAAAAAAAAAAAA"`)},
+			{"single-quoted instead of double", []byte(`'AAAAAAAAAAAAAAAAAAAAAA'`)},
+			{"extra leading byte before quote", []byte(`X"AAAAAAAAAAAAAAAAAAAAAA"`)},
+			{"extra trailing byte after quote", []byte(`"AAAAAAAAAAAAAAAAAAAAAA"X`)},
+			{"correct length, wrong delimiters", []byte(`[AAAAAAAAAAAAAAAAAAAAAA]`)},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				var g Guid
+				if err := g.UnmarshalJSON(tc.in); err == nil {
+					t.Errorf("UnmarshalJSON(%q) should have failed, got nil error", tc.in)
+				}
+			})
+		}
+
+		t.Run("UnmarshalJSON direct-call valid quoted value", func(t *testing.T) {
+			var g Guid
+			if err := g.UnmarshalJSON([]byte(`"AAAAAAAAAAAAAAAAAAAAAA"`)); err != nil {
+				t.Errorf("UnmarshalJSON should succeed on properly quoted value: %v", err)
+			}
+			if g != Nil {
+				t.Errorf("got %v, want Nil", g)
+			}
+		})
+	})
 }
 
 func TestFromBytes(t *testing.T) {

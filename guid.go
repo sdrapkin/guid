@@ -160,7 +160,10 @@ func (g *Guid) UnmarshalJSON(data []byte) error {
 		return nil // valid null Guid
 	}
 
-	if len(data) != (GuidBase64UrlByteSize+2) || !DecodeBase64URL(g[:], data[1:1+GuidBase64UrlByteSize]) {
+	if len(data) != (GuidBase64UrlByteSize+2) ||
+		data[0] != '"' ||
+		data[GuidBase64UrlByteSize+1] != '"' ||
+		!DecodeBase64URL(g[:], data[1:1+GuidBase64UrlByteSize]) {
 		return fmt.Errorf("guid: cannot unmarshal JSON string %q into a Guid", string(data))
 	}
 	return nil
@@ -387,6 +390,10 @@ func ParseBytes(src []byte) (g Guid, err error) {
 }
 
 // FromBytes returns a Guid from a 16-byte slice.
+// If src is exactly 16 bytes, its contents are used directly.
+// If src is longer than 16 bytes, only the first 16 bytes are used (excess is silently ignored).
+// This differs from Parse/ParseBytes, which require an exact-length match.
+// Returns ErrInvalidGuidSlice if src is shorter than 16 bytes.
 func FromBytes(src []byte) (Guid, error) {
 	if len(src) < GuidByteSize {
 		return Guid{}, ErrInvalidGuidSlice
