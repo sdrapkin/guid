@@ -6,17 +6,21 @@ import (
 	"encoding/hex"
 	"fmt"
 	"testing"
+
 	// used for benchmarking - commented out to avoid taking dependencies
 	//"github.com/sixafter/nanoid"
 	//"github.com/google/uuid"
+	"uuid"
 )
 
 //*******************
-// Benchmarks // to run: go test -bench=".*" -benchmem -benchtime=4s
+// Benchmarks:
+// set GOAMD64=v3
+// go test -bench=".*" -benchmem -benchtime=4s
 //*******************
 
 /****************************************************************************
-C:\Code\guid>go test -bench="(guid.*|base64.*)" -benchmem -benchtime=4s
+C:\Code\guid>go test -bench="(guid.*|base64.*|uuid.*)" -benchmem -benchtime=4s
 goos: windows
 goarch: amd64
 pkg: github.com/sdrapkin/guid
@@ -124,6 +128,7 @@ func Benchmark_guid_String_x10(b *testing.B) {
 	guid09 := New()
 	guid10 := New()
 
+	b.ResetTimer()
 	for b.Loop() {
 		_ = guid01.String()
 		_ = guid02.String()
@@ -189,10 +194,8 @@ func Benchmark_nanoid_New_Parallel_x10(b *testing.B) {
 }
 */
 
-/* commented out to avoid taking dependencies
+// commented out to avoid taking dependencies
 func Benchmark_uuid_New_x10(b *testing.B) {
-	uuid.SetRand(nil)
-	uuid.DisableRandPool()
 	for b.Loop() {
 		_ = uuid.New()
 		_ = uuid.New()
@@ -207,6 +210,83 @@ func Benchmark_uuid_New_x10(b *testing.B) {
 	}
 }
 
+func Benchmark_uuid_NewV7_x10(b *testing.B) {
+	for b.Loop() {
+		_ = uuid.NewV7()
+		_ = uuid.NewV7()
+		_ = uuid.NewV7()
+		_ = uuid.NewV7()
+		_ = uuid.NewV7()
+		_ = uuid.NewV7()
+		_ = uuid.NewV7()
+		_ = uuid.NewV7()
+		_ = uuid.NewV7()
+		_ = uuid.NewV7()
+	}
+}
+
+func Benchmark_uuid_String_x10(b *testing.B) {
+	uuid01 := uuid.New()
+	uuid02 := uuid.New()
+	uuid03 := uuid.New()
+	uuid04 := uuid.New()
+	uuid05 := uuid.New()
+	uuid06 := uuid.New()
+	uuid07 := uuid.New()
+	uuid08 := uuid.New()
+	uuid09 := uuid.New()
+	uuid10 := uuid.New()
+
+	b.ResetTimer()
+	for b.Loop() {
+		_ = uuid01.String()
+		_ = uuid02.String()
+		_ = uuid03.String()
+		_ = uuid04.String()
+		_ = uuid05.String()
+		_ = uuid06.String()
+		_ = uuid07.String()
+		_ = uuid08.String()
+		_ = uuid09.String()
+		_ = uuid10.String()
+	}
+}
+
+func Benchmark_uuid_New_Parallel_x10(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_ = uuid.New()
+			_ = uuid.New()
+			_ = uuid.New()
+			_ = uuid.New()
+			_ = uuid.New()
+			_ = uuid.New()
+			_ = uuid.New()
+			_ = uuid.New()
+			_ = uuid.New()
+			_ = uuid.New()
+		}
+	})
+}
+
+func Benchmark_uuid_NewV7_Parallel_x10(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_ = uuid.NewV7()
+			_ = uuid.NewV7()
+			_ = uuid.NewV7()
+			_ = uuid.NewV7()
+			_ = uuid.NewV7()
+			_ = uuid.NewV7()
+			_ = uuid.NewV7()
+			_ = uuid.NewV7()
+			_ = uuid.NewV7()
+			_ = uuid.NewV7()
+		}
+	})
+}
+
+/*
 func Benchmark_uuid_New_guidRand_x10(b *testing.B) {
 	uuid.SetRand(Reader)
 	uuid.DisableRandPool()
@@ -256,25 +336,6 @@ func Benchmark_uuid_New_RandPool_guidRand_x10(b *testing.B) {
 		_ = uuid.New()
 		_ = uuid.New()
 	}
-}
-
-func Benchmark_uuid_New_Parallel_x10(b *testing.B) {
-	uuid.SetRand(nil)
-	uuid.DisableRandPool()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			_ = uuid.New()
-			_ = uuid.New()
-			_ = uuid.New()
-			_ = uuid.New()
-			_ = uuid.New()
-			_ = uuid.New()
-			_ = uuid.New()
-			_ = uuid.New()
-			_ = uuid.New()
-			_ = uuid.New()
-		}
-	})
 }
 
 func Benchmark_uuid_New_Parallel_guidRand_x10(b *testing.B) {
@@ -333,42 +394,6 @@ func Benchmark_uuid_New_Parallel_RandPool_guidRand_x10(b *testing.B) {
 		}
 	})
 }
-
-func Benchmark_uuid_NewV7_RandPool_x10(b *testing.B) {
-	uuid.SetRand(nil)
-	uuid.EnableRandPool()
-	for b.Loop() {
-		_, _ = uuid.NewV7()
-		_, _ = uuid.NewV7()
-		_, _ = uuid.NewV7()
-		_, _ = uuid.NewV7()
-		_, _ = uuid.NewV7()
-		_, _ = uuid.NewV7()
-		_, _ = uuid.NewV7()
-		_, _ = uuid.NewV7()
-		_, _ = uuid.NewV7()
-		_, _ = uuid.NewV7()
-	}
-}
-
-func Benchmark_uuid_NewV7_Parallel_RandPool_x10(b *testing.B) {
-	uuid.SetRand(nil)
-	uuid.EnableRandPool()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			_, _ = uuid.NewV7()
-			_, _ = uuid.NewV7()
-			_, _ = uuid.NewV7()
-			_, _ = uuid.NewV7()
-			_, _ = uuid.NewV7()
-			_, _ = uuid.NewV7()
-			_, _ = uuid.NewV7()
-			_, _ = uuid.NewV7()
-			_, _ = uuid.NewV7()
-			_, _ = uuid.NewV7()
-		}
-	})
-}
 */
 
 func Benchmark_guid_NewPG_Parallel_x10(b *testing.B) {
@@ -407,6 +432,8 @@ func setupBenchGuids() {
 
 func Benchmark_guid_String_x20(b *testing.B) {
 	setupBenchGuids()
+
+	b.ResetTimer()
 	for b.Loop() {
 		for _, g := range benchGuids {
 			_ = g.String()
@@ -441,6 +468,12 @@ func Benchmark_base64_RawURLEncoding_Encode_x20(b *testing.B) {
 			base64.RawURLEncoding.Encode(buffer, g[:])
 		}
 	}
+}
+
+// Used as a benchmark baseline
+func _CachePool_GetPut() {
+	guidCacheRef := guidCachePool.Get().(*guidCache)
+	guidCachePool.Put(guidCacheRef)
 }
 
 func Benchmark_Concurrent_CachePool_GetPut(b *testing.B) {

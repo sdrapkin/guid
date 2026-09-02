@@ -8,13 +8,12 @@ import (
 	"reflect"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 )
 
 //*******************
-// helpful commands:
+// Helpful commands:
 //
 // go test -v -coverprofile="coverage.txt"
 // go tool cover -func=coverage.txt
@@ -62,8 +61,8 @@ func TestGenerateGuids(t *testing.T) {
 	for i := range guids {
 		guids[i] = New()
 	}
-	guids[len(guids)-1] = Nil
-	//guids[len(guids)-2] = Nil // simulate a failed test
+	guids[len(guids)-1] = Nil()
+	//guids[len(guids)-2] = Nil() // simulate a failed test
 	if duplicatesFound(guids) {
 		t.Errorf("Duplicate Guids found")
 	}
@@ -71,33 +70,35 @@ func TestGenerateGuids(t *testing.T) {
 
 func TestGenerateGuidsInParallel(t *testing.T) {
 	t.Parallel()
-	guids := make([]Guid, 4_000_000)
-
-	guidIndex := int64(-1) // Use int64 for atomic operations
-	var wg sync.WaitGroup
+	const total = 4_000_000
+	guids := make([]Guid, total)
 	numCPUs := runtime.NumCPU()
+	chunkSize := total / numCPUs
+
+	var wg sync.WaitGroup
 	t.Logf("Using %d CPUs for parallel GUID generation", numCPUs)
 	wg.Add(numCPUs)
 
-	for range numCPUs { // Concurrently generate GUIDs
-		go func() {
+	for i := range numCPUs { // Concurrently generate GUIDs
+		go func(workerID int) {
 			defer wg.Done()
-			for {
-				idx := int(atomic.AddInt64(&guidIndex, 1))
-				if idx >= len(guids) {
-					break
-				}
+			start := workerID * chunkSize
+			end := start + chunkSize
+			if workerID == numCPUs-1 {
+				end = total // Ensure the last worker covers any remaining GUIDs
+			}
+
+			for j := start; j < end; j++ {
 				g := New()
 				_ = g.String() // also test that .String() never panics
-				guids[idx] = g
+				guids[j] = g
 			}
-		}()
-	}
-
+		}(i)
+	} // for
 	wg.Wait()
 
-	guids[len(guids)-1] = Nil
-	//guids[len(guids)-2] = Nil // simulate a failed test
+	guids[len(guids)-1] = Nil()
+	//guids[len(guids)-2] = Nil() // simulate a failed test
 	if duplicatesFound(guids) {
 		t.Errorf("Duplicate Guids found")
 	}
@@ -112,6 +113,68 @@ func duplicatesFound(guids []Guid) bool {
 	}
 	return len(guidMap) != lenGuids
 } //duplicatesFound
+
+func TestGuid_AppendText(t *testing.T) {
+	g := New()
+
+	t.Run("Append to nil slice", func(t *testing.T) {
+		b, err := g.AppendText(nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if string(b) != g.String() {
+			t.Errorf("got %q, want %q", string(b), g.String())
+		}
+	})
+
+	t.Run("Append to existing prefix", func(t *testing.T) {
+		prefix := []byte("prefix-")
+		b, err := g.AppendText(prefix)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := "prefix-" + g.String()
+		if string(b) != expected {
+			t.Errorf("got %q, want %q", string(b), expected)
+		}
+	})
+
+	t.Run("Append with pre-allocated capacity", func(t *testing.T) {
+		buf := make([]byte, 0, 64)
+		b, err := g.AppendText(buf)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if string(b) != g.String() {
+			t.Errorf("got %q, want %q", string(b), g.String())
+		}
+	})
+}
+
+func TestValueReceivers(t *testing.T) {
+	// Verify unaddressable constructor returns allow direct method chaining
+	str := New().String()
+	if len(str) != GuidBase64UrlByteSize {
+		t.Errorf("New().String() length = %d, want %d", len(str), GuidBase64UrlByteSize)
+	}
+
+	pgTS := NewPG().Timestamp()
+	if pgTS.IsZero() {
+		t.Error("NewPG().Timestamp() returned zero time")
+	}
+
+	ssTS := NewSS().Timestamp()
+	if ssTS.IsZero() {
+		t.Error("NewSS().Timestamp() returned zero time")
+	}
+
+	// Verify Stringer formatting directly on value type
+	g := New()
+	formatted := fmt.Sprintf("%s", g)
+	if formatted != g.String() {
+		t.Errorf("fmt.Sprintf(%%s, g) = %q, want %q", formatted, g.String())
+	}
+}
 
 func TestGuid_ToBase64Url_RoundTrip(t *testing.T) {
 	for _, tc := range testcases {
@@ -281,18 +344,21 @@ func TestParseAndDecodeBase64URL(t *testing.T) {
 		}
 	}
 
+	// Test with undersized output slice
+	var undersizedDst [15]byte
+	if DecodeBase64URL(undersizedDst[:], []byte("AAAAAAAAAAAAAAAAAAAAAA")) {
+		t.Error("DecodeBase64URL should fail when dst slice is under 16 bytes")
+	}
+
 	// Test with invalid input
 	var g Guid
-	ok := DecodeBase64URL(g[:], []byte(""))
-	if ok {
+	if DecodeBase64URL(g[:], []byte("")) {
 		t.Error("DecodeBase64URL(\"\") should fail")
 	}
-	ok = DecodeBase64URL(g[:], []byte("short"))
-	if ok {
+	if DecodeBase64URL(g[:], []byte("short")) {
 		t.Error("DecodeBase64URL(\"short\") should fail")
 	}
-	ok = DecodeBase64URL(g[:], []byte("!@#$%^&*()_+{}|"))
-	if ok {
+	if DecodeBase64URL(g[:], []byte("!@#$%^&*()_+{}|")) {
 		t.Error("DecodeBase64URL(invalid chars) should fail")
 	}
 
@@ -300,14 +366,12 @@ func TestParseAndDecodeBase64URL(t *testing.T) {
 	unicodeStr := "こんaにちは世ち"
 	unicodeStrBytes := []byte(unicodeStr)
 	if len(unicodeStrBytes) != GuidBase64UrlByteSize {
-		panic("Unicode string length is not 22 bytes - we want this length to be 22 bytes")
+		t.Fatalf("Unicode test setup failure: expected 22 bytes, got %d", len(unicodeStrBytes))
 	}
-	ok = DecodeBase64URL(g[:], unicodeStrBytes)
-	if ok {
+	if DecodeBase64URL(g[:], unicodeStrBytes) {
 		t.Errorf("DecodeBase64URL(%q) should fail", unicodeStr)
 	}
-	_, err := Parse(unicodeStr)
-	if err == nil {
+	if _, err := Parse(unicodeStr); err == nil {
 		t.Errorf("Parse(%q) should fail", unicodeStr)
 	}
 }
@@ -317,32 +381,32 @@ func TestMax(t *testing.T) {
 	for i := range len(gmax) {
 		gmax[i] = 0xFF
 	}
-	if gmax != Max {
+	if gmax != Max() {
 		t.Error("guid.Max is wrong!")
 	}
 }
 
 func TestNilGuidBehavior(t *testing.T) {
 	var nilGuid Guid
-	if nilGuid != Nil {
-		t.Errorf("Zero Guid should equal Nil constant")
+	if nilGuid != Nil() {
+		t.Errorf("Zero Guid should equal Nil(), got %v", nilGuid)
 	}
-	if Nil.String() != "AAAAAAAAAAAAAAAAAAAAAA" {
-		t.Errorf("Nil.String() = %q, want %q", Nil.String(), "AAAAAAAAAAAAAAAAAAAAAA")
+	if Nil().String() != "AAAAAAAAAAAAAAAAAAAAAA" {
+		t.Errorf("Nil().String() = %q, want %q", Nil().String(), "AAAAAAAAAAAAAAAAAAAAAA")
 	}
-	txt, err := Nil.MarshalText()
+	txt, err := Nil().MarshalText()
 	if err != nil {
-		t.Errorf("Nil.MarshalText() error: %v", err)
+		t.Errorf("Nil().MarshalText() error: %v", err)
 	}
 	if string(txt) != "AAAAAAAAAAAAAAAAAAAAAA" {
-		t.Errorf("Nil.MarshalText() = %q, want %q", string(txt), "AAAAAAAAAAAAAAAAAAAAAA")
+		t.Errorf("Nil().MarshalText() = %q, want %q", string(txt), "AAAAAAAAAAAAAAAAAAAAAA")
 	}
-	bin, err := Nil.MarshalBinary()
+	bin, err := Nil().MarshalBinary()
 	if err != nil {
-		t.Errorf("Nil.MarshalBinary() error: %v", err)
+		t.Errorf("Nil().MarshalBinary() error: %v", err)
 	}
 	if len(bin) != GuidByteSize {
-		t.Errorf("Nil.MarshalBinary() returned %d bytes, want %d", len(bin), GuidByteSize)
+		t.Errorf("Nil().MarshalBinary() returned %d bytes, want %d", len(bin), GuidByteSize)
 	}
 }
 
@@ -443,7 +507,9 @@ func TestGuidJSONMarshaling(t *testing.T) {
 		g := New()
 		return &g
 	}
-	nilGuidPtr := &Nil // Helper for a pointer to the Nil Guid.
+
+	nilGuid := Nil()
+	nilGuidPtr := &nilGuid // Helper for a pointer to the Nil Guid.
 
 	// testCases defines the scenarios for our table-driven test.
 	testCases := []struct {
@@ -466,7 +532,7 @@ func TestGuidJSONMarshaling(t *testing.T) {
 		},
 		{
 			name:     "Wrapper with nil Guid",
-			input:    guidContainer{ID: Nil},
+			input:    guidContainer{ID: Nil()},
 			getClone: func() any { return &guidContainer{} },
 			isEqual: func(original, clone any) bool {
 				return original.(guidContainer).ID == clone.(*guidContainer).ID
@@ -552,7 +618,7 @@ func TestGuidJSONMarshaling(t *testing.T) {
 	})
 }
 
-var testUUID, _ = Parse("FBzYOSdp3VEBK7jzXPZleA")
+var testUUID = MustParse("FBzYOSdp3VEBK7jzXPZleA")
 
 func TestJSON(t *testing.T) {
 	type S struct {
@@ -592,27 +658,27 @@ func TestUnmarshalJSON(t *testing.T) {
 		"zero": {
 			data:           []byte(`{"ID1": "AAAAAAAAAAAAAAAAAAAAAA"}`),
 			expectedError:  false,
-			expectedResult: Nil,
+			expectedResult: Nil(),
 		},
 		"null": {
 			data:           []byte(`{"ID1": null}`),
 			expectedError:  false,
-			expectedResult: Nil,
+			expectedResult: Nil(),
 		},
 		"empty": {
 			data:           []byte(`{"ID1": ""}`),
 			expectedError:  true,
-			expectedResult: Nil,
+			expectedResult: Nil(),
 		},
 		"omitempty": {
 			data:           []byte(`{"ID2": ""}`),
 			expectedError:  true,
-			expectedResult: Nil,
+			expectedResult: Nil(),
 		},
 		"reject-unquoted": {
 			data:           []byte(`{"ID1": 1234567890123456789012}`),
 			expectedError:  true,
-			expectedResult: Nil,
+			expectedResult: Nil(),
 		},
 	}
 
@@ -656,7 +722,7 @@ func TestUnmarshalJSON(t *testing.T) {
 			if err := g.UnmarshalJSON([]byte(`"AAAAAAAAAAAAAAAAAAAAAA"`)); err != nil {
 				t.Errorf("UnmarshalJSON should succeed on properly quoted value: %v", err)
 			}
-			if g != Nil {
+			if g != Nil() {
 				t.Errorf("got %v, want Nil", g)
 			}
 		})
@@ -796,8 +862,13 @@ func TestReadConcurrent(t *testing.T) {
 	close(doneChan)
 	wg.Wait()
 
+	totalGuids := 0
+	for _, entropy := range entropyMaps {
+		totalGuids += len(entropy)
+	}
+
 	// Compare the entropy collected and verify that no set was output twice.
-	allEntropy := make(map[string]struct{})
+	allEntropy := make(map[string]struct{}, totalGuids)
 	for _, entropy := range entropyMaps {
 		for str := range entropy {
 			_, exists := allEntropy[str]
@@ -848,8 +919,12 @@ func TestReadLiteConcurrent(t *testing.T) {
 	close(doneChan)
 	wg.Wait()
 
+	totalGuids := 0
+	for _, entropy := range entropyMaps {
+		totalGuids += len(entropy)
+	}
 	// Compare the entropy collected and verify that no set was output twice.
-	allEntropy := make(map[string]struct{})
+	allEntropy := make(map[string]struct{}, totalGuids)
 	for _, entropy := range entropyMaps {
 		for str := range entropy {
 			_, exists := allEntropy[str]
@@ -871,6 +946,55 @@ func TestDecodeBase64URL_LastByteInvalid(t *testing.T) {
 	ok := DecodeBase64URL(g[:], src)
 	if ok {
 		t.Error("DecodeBase64URL should fail when final 2 chars are invalid")
+	}
+}
+
+func TestGuid_Compare(t *testing.T) {
+	base := Guid{0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+
+	tests := []struct {
+		name     string
+		g1, g2   Guid
+		expected int
+	}{
+		{
+			name:     "Equal GUIDs (returns 0)",
+			g1:       base,
+			g2:       base,
+			expected: 0,
+		},
+		{
+			name:     "High 64-bit smaller (hi1 < hi2 -> returns -1)",
+			g1:       Guid{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			g2:       base,
+			expected: -1,
+		},
+		{
+			name:     "High 64-bit larger (hi1 > hi2 -> returns 1)",
+			g1:       Guid{0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			g2:       base,
+			expected: 1,
+		},
+		{
+			name:     "High 64-bit equal, Low 64-bit smaller (lo1 < lo2 -> returns -1)",
+			g1:       Guid{0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			g2:       base,
+			expected: -1,
+		},
+		{
+			name:     "High 64-bit equal, Low 64-bit larger (lo1 > lo2 -> returns 1)",
+			g1:       Guid{0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			g2:       base,
+			expected: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.g1.Compare(tt.g2); got != tt.expected {
+				t.Errorf("Compare() = %d, want %d", got, tt.expected)
+			}
+		})
 	}
 }
 
@@ -903,18 +1027,15 @@ func TestSortableGuids(t *testing.T) {
 			t.Errorf("Invalid timestamp encoding in newPG")
 		}
 
-		// Test timestamp roundtrip
-		now := time.Now().UTC()
-		gNow := newPG(now.UnixNano())
-		ts := gNow.Timestamp()
-		if ts != now {
-			t.Errorf("GuidPG timestamp mismatch. Now: %v, Guid Timestamp: %v", now, ts)
+		ts1 := time.Now().UnixNano()
+		ts2 := ts1 + 1000
+		g1 := newPG(ts1)
+		g2 := newPG(ts2)
+
+		if g1.Timestamp().UnixNano() != ts1 {
+			t.Errorf("GuidPG timestamp mismatch: got %d, want %d", g1.Timestamp().UnixNano(), ts1)
 		}
 
-		// Test sorting
-		g1 := NewPG()
-		time.Sleep(2 * time.Nanosecond) // Ensure timestamp is different
-		g2 := NewPG()
 		if bytes.Compare(g1.Guid[:], g2.Guid[:]) >= 0 {
 			t.Errorf("GuidPGs are not sortable. g1 should be less than g2.\ng1: %x\ng2: %x", g1.Guid, g2.Guid)
 		}
@@ -937,35 +1058,90 @@ func TestSortableGuids(t *testing.T) {
 			t.Errorf("Invalid timestamp encoding in newSS: %s", hex)
 		}
 
-		// Test timestamp roundtrip
-		now := time.Now().UTC()
-		gNow := newSS(now.UnixNano())
-		ts := gNow.Timestamp()
-		if ts != now {
-			t.Errorf("GuidSS timestamp mismatch. Now: %v, Guid Timestamp: %v", now, ts)
+		ts1 := time.Now().UnixNano()
+		ts2 := ts1 + 1000
+
+		gNow1 := newSS(ts1)
+		if gNow1.Timestamp().UnixNano() != ts1 {
+			t.Errorf("GuidSS timestamp mismatch: got %d, want %d", gNow1.Timestamp().UnixNano(), ts1)
 		}
 
-		// Skip sort testing for GuidSS for now
+		gNow2 := newSS(ts2)
+		if bytes.Compare(gNow1.Guid[8:], gNow2.Guid[8:]) >= 0 {
+			t.Errorf("GuidSS timestamps are not sortable. gNow1 should be less than gNow2.\ng1: %x\ng2: %x", gNow1.Guid[8:], gNow2.Guid[8:])
+		}
 	})
 
 	// Check for immediate collision between the two types
 	t.Run("CollisionCheck", func(t *testing.T) {
 		if NewPG().Guid == NewSS().Guid {
-			t.Error("NewPG() and NewSS() produced the same Guid, which is highly unlikely and may indicate a problem.")
+			t.Error("NewPG() and NewSS() produced the same Guid")
 		}
 	})
-} // TestSortableGuids()
+}
 
 func TestCachePoolGetPut(t *testing.T) {
-	// Test internal func to get 100% code coverage
-	t.Helper()
-	defer func() {
-		if r := recover(); r != nil {
-			t.Errorf("unexpected _CachePool panic: %q", r)
+	for range 10 {
+		guidCacheRef := guidCachePool.Get().(*guidCache)
+		guidCachePool.Put(guidCacheRef)
+	}
+}
+
+func TestNew_ConcurrentPoolExhaustion(t *testing.T) {
+	const numGoroutines = 100
+	const opsPerRoutine = 10_000
+
+	totalGuids := numGoroutines * opsPerRoutine
+
+	// Pre-allocate local slices per worker to avoid mutex contention during generation
+	results := make([][]Guid, numGoroutines)
+	for i := range results {
+		results[i] = make([]Guid, opsPerRoutine)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	// Background worker repeatedly forces GC to clear sync.Pool caches
+	stopGC := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(1 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stopGC:
+				return
+			case <-ticker.C:
+				runtime.GC()
+			}
 		}
 	}()
-	for range 10 {
-		_CachePool_GetPut()
+
+	// Generate GUIDs concurrently
+	for workerID := range numGoroutines {
+		go func(id int) {
+			defer wg.Done()
+			for i := range opsPerRoutine {
+				results[id][i] = New()
+			}
+		}(workerID)
+	}
+
+	wg.Wait()
+	close(stopGC)
+
+	// Validate non-nil and uniqueness post-execution
+	seen := make(map[Guid]struct{}, totalGuids)
+	for _, workerGuids := range results {
+		for _, g := range workerGuids {
+			if g == Nil() {
+				t.Errorf("New() returned Nil Guid during pool exhaustion stress")
+			}
+			if _, exists := seen[g]; exists {
+				t.Fatalf("Duplicate GUID detected under concurrent pool exhaustion: %s", g)
+			}
+			seen[g] = struct{}{}
+		}
 	}
 }
 
@@ -1030,14 +1206,27 @@ func FuzzParseBytes(f *testing.F) {
 	})
 }
 
+func TestMustParse_Panic(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Errorf("MustParse() did not panic on invalid input")
+		}
+	}()
+
+	// Passing an invalid Base64Url string triggers Parse() to return an error,
+	// which causes MustParse() to hit the panic branch.
+	_ = MustParse("FBzYOSdp3VEBK7jzXP#leA")
+}
+
 func ExampleNew() {
-	g := New()      // new random Guid
-	fmt.Println(&g) // calls g.String(), which returns the Base64Url encoded string
+	g := New()     // new random Guid
+	fmt.Println(g) // calls g.String(), which returns the Base64Url encoded string
 }
 
 func ExampleGuid_String() {
 	// g is a 16-byte Guid represented as a hex string "0123456789abcdef0123456789abcdef"
 	var g Guid = [16]byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe}
-	fmt.Println(&g) // calls g.String(), which returns the Base64Url encoded string
+	fmt.Println(g) // calls g.String(), which returns the Base64Url encoded string
 	// Output: ASNFZ4mrze8QMlR2mLrc_g
 }

@@ -6,15 +6,15 @@ package guid
 import (
 	cryptoRand "crypto/rand"
 	"encoding"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"math/bits"
+	"slices"
 	"sync"
 	"time"
 	"unsafe"
-
-	"golang.org/x/sys/cpu"
 )
 
 //==============================================
@@ -41,15 +41,6 @@ var _ = map[bool]int{false: 0, guidCacheByteSize == 4096: 1}
 //==============================================
 
 var (
-	_minGuid Guid
-	_maxGuid Guid = Guid{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-)
-
-var (
-	// Nil is the nil Guid, with all 128 bits set to zero.
-	Nil Guid = _minGuid
-	// Max is the maximum Guid, with all 128 bits set to one.
-	Max Guid = _maxGuid
 	// Reader is a global, shared instance of a cryptographically secure random number generator. It is safe for concurrent use.
 	Reader reader = _reader
 )
@@ -68,11 +59,12 @@ var (
 //==============================================
 
 var (
-	_ fmt.Stringer               = &Guid{}
-	_ encoding.TextMarshaler     = &Guid{}
+	_ fmt.Stringer               = Guid{}
+	_ encoding.TextMarshaler     = Guid{}
 	_ encoding.TextUnmarshaler   = &Guid{}
 	_ encoding.BinaryMarshaler   = Guid{}
 	_ encoding.BinaryUnmarshaler = &Guid{}
+	_ encoding.TextAppender      = Guid{}
 	_ io.Reader                  = reader{}
 )
 
@@ -113,6 +105,29 @@ type guidCache struct {
 // Guid Extension Methods
 //==============================================
 
+// Compare compares the Guid with another Guid (big-endian byte order).
+// Returns -1 if g < other, 0 if g == other, and 1 if g > other.
+func (g Guid) Compare(other Guid) int {
+	hi1 := binary.BigEndian.Uint64(g[:8])
+	hi2 := binary.BigEndian.Uint64(other[:8])
+	if hi1 < hi2 {
+		return -1
+	}
+	if hi1 > hi2 {
+		return 1
+	}
+
+	lo1 := binary.BigEndian.Uint64(g[8:])
+	lo2 := binary.BigEndian.Uint64(other[8:])
+	if lo1 < lo2 {
+		return -1
+	}
+	if lo1 > lo2 {
+		return 1
+	}
+	return 0
+}
+
 // MarshalBinary implements the encoding.BinaryMarshaler interface for Guid.
 func (guid Guid) MarshalBinary() (data []byte, err error) {
 	return guid[:], nil
@@ -136,7 +151,7 @@ func (guid *Guid) UnmarshalText(data []byte) error {
 }
 
 // MarshalText implements encoding.TextMarshaler.
-func (guid *Guid) MarshalText() ([]byte, error) {
+func (guid Guid) MarshalText() ([]byte, error) {
 	buffer := make([]byte, GuidBase64UrlByteSize)
 	guid.encodeBase64URL(buffer)
 	return buffer, nil
@@ -155,7 +170,7 @@ func (g Guid) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaler interface.
 // It unmarshals a JSON string into a Guid.
 func (g *Guid) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
+	if len(data) == 4 && data[0] == 'n' && data[1] == 'u' && data[2] == 'l' && data[3] == 'l' {
 		*g = Guid{}
 		return nil // valid null Guid
 	}
@@ -170,7 +185,7 @@ func (g *Guid) UnmarshalJSON(data []byte) error {
 }
 
 // String returns a Base64Url-encoded string representation of the Guid.
-func (guid *Guid) String() string {
+func (guid Guid) String() string {
 	buffer := make([]byte, GuidBase64UrlByteSize)
 	guid.encodeBase64URL(buffer)
 	return unsafe.String(&buffer[0], GuidBase64UrlByteSize)
@@ -191,8 +206,16 @@ func (guid *Guid) String() string {
 	}*/
 }
 
+// AppendText implements the encoding.TextAppender interface.
+func (guid Guid) AppendText(b []byte) ([]byte, error) {
+	n := len(b)
+	b = slices.Grow(b, GuidBase64UrlByteSize)[:n+GuidBase64UrlByteSize]
+	guid.encodeBase64URL(b[n:])
+	return b, nil
+}
+
 // EncodeBase64URL encodes the Guid into the provided dst as Base64Url.
-func (guid *Guid) EncodeBase64URL(dst []byte) error {
+func (guid Guid) EncodeBase64URL(dst []byte) error {
 	if len(dst) < GuidBase64UrlByteSize {
 		return ErrBufferTooSmallBase64Url
 	}
@@ -213,7 +236,7 @@ func (guid *Guid) encodeBase64URL(dst []byte) {
 
 	// Process the first 15 bytes (5 groups of 3 bytes). Each 3-byte group is converted to 4 Base64Url characters.
 	for i := 0; i < limit; i += 3 {
-		val := uint(guid[i])<<16 | uint(guid[i+1])<<8 | uint(guid[i+2])
+		val := uint32(guid[i])<<16 | uint32(guid[i+1])<<8 | uint32(guid[i+2])
 
 		// Combine 3 bytes into a 24-bit integer and extract 4 6-bit indices.
 		dst[j] = base64UrlAlphabet[val>>18&0x3F]
@@ -275,12 +298,8 @@ func (r reader) Read(b []byte) (int, error) {
 // Timestamp extracts the timestamp from the PostgreSQL Guid.
 // The timestamp is stored in the first 8 bytes as nanoseconds since Unix epoch.
 // Returns the time.Time representation of when the Guid was created.
-func (g *GuidPG) Timestamp() time.Time {
-	timestamp := *(*int64)(unsafe.Pointer(&g.Guid[0])) // Extract timestamp from first 8 bytes
-
-	if !cpu.IsBigEndian {
-		timestamp = int64(bits.ReverseBytes64(uint64(timestamp)))
-	}
+func (g GuidPG) Timestamp() time.Time {
+	timestamp := int64(binary.BigEndian.Uint64(g.Guid[0:8])) // Extract timestamp from first 8 bytes
 	return time.Unix(0, timestamp).UTC()
 }
 
@@ -291,15 +310,23 @@ func (g *GuidPG) Timestamp() time.Time {
 // Timestamp extracts the timestamp from the SQL Server Guid.
 // The timestamp is stored in the last 8 bytes using SQL Server's Guid ordering rules.
 // Returns the time.Time representation of when the Guid was created.
-func (g *GuidSS) Timestamp() time.Time {
-	encoded := *(*uint64)(unsafe.Pointer(&g.Guid[8])) // Extract timestamp from last 8 bytes (SQL Server format)
-	timestamp := int64(bits.RotateLeft64(bits.ReverseBytes64(encoded), 16))
+func (g GuidSS) Timestamp() time.Time {
+	encoded := binary.BigEndian.Uint64(g.Guid[8:]) // Extract timestamp from last 8 bytes (SQL Server format)
+	timestamp := int64(bits.RotateLeft64(encoded, 16))
 	return time.Unix(0, timestamp).UTC()
 }
 
 //==============================================
 // Standalone Functions
 //==============================================
+
+// Nil returns the nil Guid, with all 128 bits set to zero.
+func Nil() Guid { return Guid{} }
+
+// Max returns the maximum Guid, with all 128 bits set to one.
+func Max() Guid {
+	return Guid{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+}
 
 // New generates a new cryptographically secure Guid.
 func New() (g Guid) {
@@ -316,14 +343,6 @@ func New() (g Guid) {
 	return
 }
 
-// Used as a benchmark baseline
-func _CachePool_GetPut() {
-	guidCacheRef := guidCachePool.Get().(*guidCache)
-	guidCachePool.Put(guidCacheRef)
-}
-
-var _ = _CachePool_GetPut
-
 // NewPG generates a new PostgreSQL sortable Guid as [8-byte time.Now() timestamp][8 random bytes]
 func NewPG() GuidPG {
 	return newPG(time.Now().UnixNano())
@@ -331,10 +350,7 @@ func NewPG() GuidPG {
 
 func newPG(ts int64) (gpg GuidPG) {
 	gpg.Guid = New()
-	if !cpu.IsBigEndian {
-		ts = int64(bits.ReverseBytes64(uint64(ts)))
-	}
-	*(*uint64)(unsafe.Pointer(&gpg.Guid[0])) = uint64(ts)
+	binary.BigEndian.PutUint64(gpg.Guid[0:8], uint64(ts))
 	return
 }
 
@@ -347,16 +363,15 @@ func newSS(ts int64) (gss GuidSS) {
 	// based on Microsoft SqlGuid.cs
 	// https://github.com/microsoft/referencesource/blob/5697c29004a34d80acdaf5742d7e699022c64ecd/System.Data/System/Data/SQLTypes/SQLGuid.cs
 	gss.Guid = New()
-	// we don't worry about big-endian, because SQL Server does not run on big-endian
-	*(*uint64)(unsafe.Pointer(&gss.Guid[8])) = bits.ReverseBytes64(bits.RotateLeft64(uint64(ts), -16))
+	encoded := bits.RotateLeft64(uint64(ts), -16)
+	binary.BigEndian.PutUint64(gss.Guid[8:], encoded)
 	return
 }
 
 // NewString generates a new cryptographically secure Guid, and returns it as a Base64Url string.
 // NewString is equivalent to "g := guid.New(); return g.String();".
 func NewString() string {
-	g := New()
-	return g.String()
+	return New().String()
 }
 
 // Parse parses a Base64Url-encoded string into the Guid.
@@ -373,6 +388,16 @@ func Parse(s string) (g Guid, err error) {
 		return Guid{}, ErrInvalidBase64UrlGuidEncoding
 	}
 	return g, nil
+}
+
+// MustParse returns the Guid represented by Base64Url-encoded string.
+// It calls Parse(s) and panics if it returns an error. Use this only when you are sure the string is a valid Guid encoding.
+func MustParse(s string) Guid {
+	g, err := Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return g
 }
 
 // ParseBytes parses a Base64Url-encoded string represented as a byte slice into the Guid.
