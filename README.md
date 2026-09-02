@@ -3,7 +3,7 @@
 
 `Guid` is defined as `type Guid [16]byte` and filled with 128 cryptographically strong bits.
 
-[Go playground](https://go.dev/play/p/l_Yj74HUpgl)
+[Go playground](https://go.dev/play/p/fXp5bA1qfQB)
 ```go
 package main
 
