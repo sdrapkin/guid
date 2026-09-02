@@ -20,7 +20,7 @@ func main() {
 	fmt.Println()
 	for range 4 {
 		g := guid.New()
-		fmt.Println(&g) // calls g.String()
+		fmt.Println(g.String())
 	}
 }
 ```
@@ -46,8 +46,8 @@ Beyond raw speed, `guid` offers:
 * **Cryptographically Strong**: Generates 128 cryptographically secure bits for robust, unique identifiers.
 * **Optimized for Databases**: Includes special `GuidPG` and `GuidSS` types that generate sequential Guids, dramatically improving `INSERT` performance and preventing index fragmentation in PostgreSQL and SQL Server databases.
 * **Seamless Interoperability**: Easily integrate with existing `google/uuid` codebases, and even boost `uuid`'s performance by up to **4x** using `guid.Reader`.
-* **FIPS 140 Compliant**: Ensures adherence to stringent security standards.
-* **Zero Allocations for Core Operations**: `guid.New()` generates new Guids with no memory allocations, making it incredibly efficient.
+* **FIPS 140 Compatibility**: Can be used in Go environments configured for FIPS 140 mode.
+* **Zero Allocations for Core Operations**: `guid.New()` generates new Guids with no allocations; string conversion via `String()` allocates the returned string as expected.
 
 ## Guid is ~10x faster than `github.com/google/uuid` 🔥
 
@@ -61,25 +61,29 @@ Beyond raw speed, `guid` offers:
 **All APIs are safe for concurrent use by multiple goroutines.**
 | Functions | Description |
 |---|---|
-| `guid.New()` `Guid`           | Generate a new Guid |
+| `guid.New()` `Guid`           | Generate a new cryptographically secure Guid |
 | `guid.NewString()` `string`   | Generate a new Guid as a Base64Url string |
 | `guid.NewPG()` `GuidPG`       | Generate a new PostgreSQL sequential Guid |
 | `guid.NewSS()` `GuidSS`       | Generate a new SQL Server sequential Guid |
 | `guid.Parse(s string)` `(Guid, error)` | Parse a Base64Url string into a Guid |
+| `guid.MustParse(s string)` `Guid` | Parse a Base64Url string or panic on invalid input |
 | `guid.ParseBytes(src []byte)` `(Guid, error)` | Parse Base64Url bytes to a Guid |
-| `guid.FromBytes(src []byte)` `(Guid, error)`  | Parse 16-byte slice to a Guid |
-| `guid.DecodeBase64URL(dst []byte, src []byte)` `(ok bool)` | Decode a Base64Url slice into a Guid slice |
-| `guid.Reader` 🔥 implements `io.Reader`    | Faster alternative to `crypto/rand` |
-| guid.Nil                    | The zero-value Guid |
+| `guid.FromBytes(src []byte)` `(Guid, error)` | Parse a 16-byte slice into a Guid |
+| `guid.DecodeBase64URL(dst []byte, src []byte)` `(ok bool)` | Decode a 22-char Base64Url into a Guid |
+| `guid.Read(p []byte)` `(int, error)` | Fill a byte slice with secure random bytes |
+| `guid.Reader` 🔥 implements `io.Reader` | Faster alternative to `crypto/rand` |
+| `guid.Nil()` `Guid` | The zero-value Guid |
+| `guid.Max()` `Guid` | The maximum Guid |
 
 | `Guid` methods | Description |
 |---|---|
-| `.String()` `string` | Encodes the Guid into Base64Url 22-char string `fmt.Stringer` |
-| `.EncodeBase64URL(dst []byte)` `error` | Like `.String()` but encodes into len(22) byte slice |
-| .MarshalBinary() | Implements `encoding.BinaryMarshaler` |
-| .UnmarshalBinary() | Implements `encoding.BinaryUnmarshaler` |
-| .MarshalText() | Implements `encoding.TextMarshaler` |
-| .UnmarshalText() | Implements `encoding.TextUnmarshaler` |
+| `.String()` `string` | Encodes the Guid into a 22-char Base64Url string (`fmt.Stringer`) |
+| `.EncodeBase64URL(dst []byte)` `error` | Encodes into a len(22) destination slice |
+| `.Compare(other Guid)` `int` | Lexicographic comparison using big-endian byte order |
+| `.MarshalBinary()` | Implements `encoding.BinaryMarshaler` |
+| `.UnmarshalBinary()` | Implements `encoding.BinaryUnmarshaler` |
+| `.MarshalText()` | Implements `encoding.TextMarshaler` |
+| `.UnmarshalText()` | Implements `encoding.TextUnmarshaler` |
 
 | `GuidPG`, `GuidSS` methods | Description |
 |---|---|
@@ -153,7 +157,8 @@ fmt.Println(u)
 u = uuid.UUID(gss.Guid) // copy by value
 fmt.Println(u)
 
-uptr := (*uuid.UUID)(unsafe.Pointer(&g)) // zero-copy cast
+// Advanced: zero-copy cast for performance-sensitive code; use with care.
+uptr := (*uuid.UUID)(unsafe.Pointer(&g))
 g[0], g[1] = 0xAB, 0xCD
 fmt.Println(uptr)
 ```
@@ -165,7 +170,7 @@ abcd6521-a124-9d0c-cb11-7f0cbf3a030c
 ```
 
 ## FIPS Ready
-* **FIPS-140 ready** (https://go.dev/doc/security/fips140)
+* **FIPS-140 compatible** (https://go.dev/doc/security/fips140)
 	* set `GODEBUG=fips140=on` environment variable
 	* https://go.dev/blog/fips140
 
@@ -236,7 +241,7 @@ cpu: Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz
 Full `go doc` style documentation: https://pkg.go.dev/github.com/sdrapkin/guid
 
 ## Requirements
-- Go 1.24+
+- Go 1.27+
 
 ## Installation
 ### Using `go get`
@@ -244,7 +249,7 @@ Full `go doc` style documentation: https://pkg.go.dev/github.com/sdrapkin/guid
 To install the `guid` package, run the following command:
 
 ```sh
-go get -u github.com/sdrapkin/guid
+go get github.com/sdrapkin/guid
 ```
 
 To use the `guid` package in your Go project, import it as follows:
