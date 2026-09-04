@@ -19,23 +19,83 @@ import (
 // go test -bench=".*" -benchmem -benchtime=4s
 //*******************
 
-/****************************************************************************
-C:\Code\guid>go test -bench="(guid.*|base64.*|uuid.*)" -benchmem -benchtime=4s
+/**************************************************************************** [2026-06-05 15:30:00] Benchmark results, Go 1.27)
+C:\Code\Go\guid>go test -run="^$" -bench=(.*) -benchmem -benchtime=4s
 goos: windows
 goarch: amd64
 pkg: github.com/sdrapkin/guid
 cpu: Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz
-Benchmark_guid_New_x10-8                                14520387               313.1 ns/op             0 B/op          0 allocs/op
-Benchmark_guid_NewPG_x10-8                              12206565               397.0 ns/op             0 B/op          0 allocs/op
-Benchmark_guid_NewSS_x10-8                              12072081               401.1 ns/op             0 B/op          0 allocs/op
-Benchmark_guid_New_Parallel_x10-8                       79158543                99.52 ns/op            0 B/op          0 allocs/op
-Benchmark_guid_NewString_x10-8                           5486835               848.9 ns/op           240 B/op         10 allocs/op
-Benchmark_guid_String_x10-8                              9691195               469.4 ns/op           240 B/op         10 allocs/op
-Benchmark_guid_NewString_Parallel_x10-8                 10971610               610.0 ns/op           241 B/op         10 allocs/op
-Benchmark_guid_String_x20-8                              4035253              1038 ns/op             480 B/op         20 allocs/op
-Benchmark_base64_RawURLEncoding_EncodeToString_x20-8     2678386              1792 ns/op             960 B/op         40 allocs/op
-Benchmark_guid_EncodeBase64URL_x20-8                    10934779               418.1 ns/op             0 B/op          0 allocs/op
-Benchmark_base64_RawURLEncoding_Encode_x20-8            10476289               479.6 ns/op             0 B/op          0 allocs/op
+Benchmark_guid_New_x10-8                                15831030               255.6 ns/op             0 B/op          0 allocs/op
+Benchmark_guid_CryptoRandRead_x10-8                      2381785              1803 ns/op               0 B/op          0 allocs/op
+Benchmark_guid_NewPG_x10-8                              12887008               366.1 ns/op             0 B/op          0 allocs/op
+Benchmark_guid_NewSS_x10-8                              12970501               380.4 ns/op             0 B/op          0 allocs/op
+Benchmark_guid_New_Parallel_x10-8                       79680348                91.27 ns/op            0 B/op          0 allocs/op
+Benchmark_guid_NewString_x10-8                           6830061               686.3 ns/op           240 B/op         10 allocs/op
+Benchmark_guid_String_x10-8                             26392231               175.3 ns/op             0 B/op          0 allocs/op
+Benchmark_guid_NewString_Parallel_x10-8                 14398298               498.2 ns/op           240 B/op         10 allocs/op
+Benchmark_uuid_New_x10-8                                 2640710              1712 ns/op               0 B/op          0 allocs/op
+Benchmark_uuid_NewV7_x10-8                               2735016              1819 ns/op               0 B/op          0 allocs/op
+Benchmark_uuid_String_x10-8                              6845982               721.1 ns/op           480 B/op         10 allocs/op
+Benchmark_uuid_New_Parallel_x10-8                        7924022               748.7 ns/op             0 B/op          0 allocs/op
+Benchmark_uuid_NewV7_Parallel_x10-8                      1571799              2818 ns/op               0 B/op          0 allocs/op
+Benchmark_guid_NewPG_Parallel_x10-8                     42497318               133.9 ns/op             0 B/op          0 allocs/op
+Benchmark_guid_String_x20-8                             11149111               413.8 ns/op             0 B/op          0 allocs/op
+Benchmark_base64_RawURLEncoding_EncodeToString_x20-8     4709122              1089 ns/op             480 B/op         20 allocs/op
+Benchmark_guid_EncodeBase64URL_x20-8                    11887330               391.7 ns/op             0 B/op          0 allocs/op
+Benchmark_base64_RawURLEncoding_Encode_x20-8            11819721               397.3 ns/op             0 B/op          0 allocs/op
+Benchmark_Concurrent_CachePool_GetPut/G1-8              1000000000               6.449 ns/op           0 B/op          0 allocs/op
+Benchmark_Concurrent_CachePool_GetPut/G2-8              704719772                6.283 ns/op           0 B/op          0 allocs/op
+Benchmark_Concurrent_CachePool_GetPut/G4-8              791839826                6.187 ns/op           0 B/op          0 allocs/op
+Benchmark_Concurrent_CachePool_GetPut/G8-8              822088278                6.085 ns/op           0 B/op          0 allocs/op
+Benchmark_Concurrent_CachePool_GetPut/G16-8             816457746                5.975 ns/op           0 B/op          0 allocs/op
+Benchmark_Concurrent_CachePool_GetPut/G32-8             821981848                6.336 ns/op           0 B/op          0 allocs/op
+Benchmark_Concurrent_CachePool_GetPut/G64-8             784138318                6.039 ns/op           0 B/op          0 allocs/op
+=================================
+BenchmarkReadPerf/______Guid_Read([0]byte)-8            1000000000               3.254 ns/op           0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([0]byte)-8            48090409                97.71 ns/op            0 B/op          0 allocs/op
+=================================
+BenchmarkReadPerf/______Guid_Read([1]byte)-8            179076219               27.72 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([1]byte)-8            34390605               134.7 ns/op             0 B/op          0 allocs/op
+=================================
+BenchmarkReadPerf/______Guid_Read([2]byte)-8            171541156               27.64 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([2]byte)-8            33717998               137.1 ns/op             0 B/op          0 allocs/op
+=================================
+BenchmarkReadPerf/______Guid_Read([4]byte)-8            179178990               26.76 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([4]byte)-8            33791941               147.7 ns/op             0 B/op          0 allocs/op
+=================================
+BenchmarkReadPerf/______Guid_Read([8]byte)-8            178643091               26.81 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([8]byte)-8            31093741               147.6 ns/op             0 B/op          0 allocs/op
+=================================
+BenchmarkReadPerf/______Guid_Read([16]byte)-8           174099001               29.49 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([16]byte)-8           29316646               165.2 ns/op             0 B/op          0 allocs/op
+=================================
+BenchmarkReadPerf/______Guid_Read([32]byte)-8           137474346               34.82 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([32]byte)-8           25599958               193.0 ns/op             0 B/op          0 allocs/op
+=================================
+BenchmarkReadPerf/______Guid_Read([64]byte)-8           90277999                49.72 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([64]byte)-8           19892316               247.9 ns/op             0 B/op          0 allocs/op
+=================================
+BenchmarkReadPerf/______Guid_Read([128]byte)-8          58561222                81.73 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([128]byte)-8          14416617               335.1 ns/op             0 B/op          0 allocs/op
+=================================
+BenchmarkReadPerf/______Guid_Read([256]byte)-8          34431975               142.3 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([256]byte)-8          12669002               373.4 ns/op             0 B/op          0 allocs/op
+=================================
+BenchmarkReadPerf/______Guid_Read([512]byte)-8          19075534               260.1 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([512]byte)-8          10279756               463.7 ns/op             0 B/op          0 allocs/op
+=================================
+BenchmarkReadPerf/______Guid_Read([513]byte)-8           7993334               526.2 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([513]byte)-8           8422176               553.9 ns/op             0 B/op          0 allocs/op
+=================================
+BenchmarkReadPerf/______Guid_Read([1024]byte)-8          7454049               639.8 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([1024]byte)-8          7387695               654.8 ns/op             0 B/op          0 allocs/op
+=================================
+BenchmarkReadPerf/______Guid_Read([2048]byte)-8          4842636               990.5 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([2048]byte)-8          4836138              1035 ns/op               0 B/op          0 allocs/op
+=================================
+BenchmarkReadPerf/______Guid_Read([4096]byte)-8          2802358              1985 ns/op               0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([4096]byte)-8          2844350              1770 ns/op               0 B/op          0 allocs/op
+=================================
 ****************************************************************************/
 
 // BenchmarkNew benchmarks the New function of the guid package.
@@ -51,6 +111,22 @@ func Benchmark_guid_New_x10(b *testing.B) {
 		_ = New()
 		_ = New()
 		_ = New()
+	}
+}
+
+func Benchmark_guid_CryptoRandRead_x10(b *testing.B) {
+	var g Guid
+	for b.Loop() {
+		cryptoRand.Read(g[:])
+		cryptoRand.Read(g[:])
+		cryptoRand.Read(g[:])
+		cryptoRand.Read(g[:])
+		cryptoRand.Read(g[:])
+		cryptoRand.Read(g[:])
+		cryptoRand.Read(g[:])
+		cryptoRand.Read(g[:])
+		cryptoRand.Read(g[:])
+		cryptoRand.Read(g[:])
 	}
 }
 

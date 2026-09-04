@@ -4,6 +4,7 @@
 package guid
 
 import (
+	"bytes"
 	cryptoRand "crypto/rand"
 	"encoding"
 	"encoding/binary"
@@ -96,9 +97,8 @@ var _reader reader = reader{}
 
 // guidCache holds a 4096-byte buffer and a byte index for Guid allocation.
 type guidCache struct {
-	buffer []byte
 	index  uint8
-	_      [32]byte // pad ensures each index is on its own cache line
+	buffer [guidCacheByteSize]byte
 }
 
 //==============================================
@@ -108,24 +108,7 @@ type guidCache struct {
 // Compare compares the Guid with another Guid (big-endian byte order).
 // Returns -1 if g < other, 0 if g == other, and 1 if g > other.
 func (g Guid) Compare(other Guid) int {
-	hi1 := binary.BigEndian.Uint64(g[:8])
-	hi2 := binary.BigEndian.Uint64(other[:8])
-	if hi1 < hi2 {
-		return -1
-	}
-	if hi1 > hi2 {
-		return 1
-	}
-
-	lo1 := binary.BigEndian.Uint64(g[8:])
-	lo2 := binary.BigEndian.Uint64(other[8:])
-	if lo1 < lo2 {
-		return -1
-	}
-	if lo1 > lo2 {
-		return 1
-	}
-	return 0
+	return bytes.Compare(g[:], other[:])
 }
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface for Guid.
@@ -275,10 +258,10 @@ func (r reader) Read(b []byte) (int, error) {
 	guidCacheRef := guidCachePool.Get().(*guidCache)
 
 	if n > (guidCacheByteSize - int(guidCacheRef.index)*GuidByteSize) {
-		cryptoRand.Read(guidCacheRef.buffer) // Not enough bytes remaining: refill completely. Go 1.24+ guarantees crypto/rand.Read succeeds.
+		cryptoRand.Read(guidCacheRef.buffer[:]) // Not enough bytes remaining: refill completely. Go 1.24+ guarantees crypto/rand.Read succeeds.
 		guidCacheRef.index = 0
 	} else if guidCacheRef.index == 0 {
-		cryptoRand.Read(guidCacheRef.buffer) // Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
+		cryptoRand.Read(guidCacheRef.buffer[:]) // Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
 	}
 
 	copy(b, guidCacheRef.buffer[int(guidCacheRef.index)*GuidByteSize:])
@@ -303,6 +286,12 @@ func (g GuidPG) Timestamp() time.Time {
 	return time.Unix(0, timestamp).UTC()
 }
 
+// GuidSS.Compare compares the PostgreSQL Guid with another PostgreSQL Guid using big-endian byte order.
+// Returns -1 if g < other, 0 if g == other, and 1 if g > other.
+func (g GuidPG) Compare(other GuidPG) int {
+	return g.Guid.Compare(other.Guid)
+}
+
 //==============================================
 // GuidSS Extension Methods
 //==============================================
@@ -314,6 +303,22 @@ func (g GuidSS) Timestamp() time.Time {
 	encoded := binary.BigEndian.Uint64(g.Guid[8:]) // Extract timestamp from last 8 bytes (SQL Server format)
 	timestamp := int64(bits.RotateLeft64(encoded, 16))
 	return time.Unix(0, timestamp).UTC()
+}
+
+// GuidSS.Compare compares the SQL Server Guid with another SQL Server Guid using SQL Server's byte ordering rules.
+// Returns -1 if g < other, 0 if g == other, and 1 if g > other.
+func (g GuidSS) Compare(other GuidSS) int {
+	// SQL Server compares bytes in order: 10-15, 8-9, 6-7, 4-5, 0-3
+	order := [...]int{10, 11, 12, 13, 14, 15, 8, 9, 6, 7, 4, 5, 0, 1, 2, 3}
+	for _, idx := range order {
+		if g.Guid[idx] < other.Guid[idx] {
+			return -1
+		}
+		if g.Guid[idx] > other.Guid[idx] {
+			return 1
+		}
+	}
+	return 0
 }
 
 //==============================================
@@ -332,13 +337,14 @@ func Max() Guid {
 func New() (g Guid) {
 	guidCacheRef := guidCachePool.Get().(*guidCache)
 
-	if guidCacheRef.index == 0 {
-		cryptoRand.Read(guidCacheRef.buffer) // Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
+	var index int = int(guidCacheRef.index)
+	if index == 0 {
+		cryptoRand.Read(guidCacheRef.buffer[:]) // Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
 	}
 
-	copy(g[:], guidCacheRef.buffer[int(guidCacheRef.index)*GuidByteSize:]) // Extract GUID at current index
+	copy(g[:], guidCacheRef.buffer[index*GuidByteSize:]) // Extract GUID at current index
 
-	guidCacheRef.index++ // Increment index for next call, uint8 wraps from 255 to 0 automatically
+	guidCacheRef.index = uint8(index + 1) // Increment index for next call, uint8 wraps from 255 to 0 automatically
 	guidCachePool.Put(guidCacheRef)
 	return
 }
@@ -490,7 +496,7 @@ func Read(b []byte) (n int, err error) {
 // guidCachePool is a sync.Pool that holds guidCache instances.
 var guidCachePool = sync.Pool{
 	New: func() any {
-		return &guidCache{buffer: make([]byte, guidCacheByteSize)}
+		return &guidCache{}
 	},
 }
 

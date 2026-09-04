@@ -998,6 +998,62 @@ func TestGuid_Compare(t *testing.T) {
 	}
 }
 
+func TestGuidPG_Compare(t *testing.T) {
+	base := GuidPG{Guid: Guid{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}}
+	tests := []struct {
+		name     string
+		other    GuidPG
+		expected int
+	}{
+		{
+			name:     "less",
+			other:    GuidPG{Guid: Guid{0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+			expected: -1,
+		},
+		{
+			name:     "equal",
+			other:    base,
+			expected: 0,
+		},
+		{
+			name:     "greater",
+			other:    GuidPG{Guid: Guid{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+			expected: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := base.Compare(tt.other); got != tt.expected {
+				t.Errorf("Compare() = %d, want %d", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGuidSS_Compare(t *testing.T) {
+	order := []int{10, 11, 12, 13, 14, 15, 8, 9, 6, 7, 4, 5, 0, 1, 2, 3}
+	base := GuidSS{}
+
+	if got := base.Compare(base); got != 0 {
+		t.Errorf("Compare(equal) = %d, want 0", got)
+	}
+
+	for _, index := range order {
+		t.Run(fmt.Sprintf("byte_%d", index), func(t *testing.T) {
+			greater := GuidSS{}
+			greater.Guid[index] = 1
+
+			if got := base.Compare(greater); got != -1 {
+				t.Errorf("Compare() = %d, want -1", got)
+			}
+			if got := greater.Compare(base); got != 1 {
+				t.Errorf("reverse Compare() = %d, want 1", got)
+			}
+		})
+	}
+}
+
 func TestNewString(t *testing.T) {
 	s := NewString()
 	if len(s) != GuidBase64UrlByteSize {
@@ -1058,8 +1114,8 @@ func TestSortableGuids(t *testing.T) {
 			t.Errorf("Invalid timestamp encoding in newSS: %s", hex)
 		}
 
-		ts1 := time.Now().UnixNano()
-		ts2 := ts1 + 1000
+		ts1 := int64(0x0000ffffffffffff)
+		ts2 := int64(0x0001000000000000)
 
 		gNow1 := newSS(ts1)
 		if gNow1.Timestamp().UnixNano() != ts1 {
@@ -1067,8 +1123,8 @@ func TestSortableGuids(t *testing.T) {
 		}
 
 		gNow2 := newSS(ts2)
-		if bytes.Compare(gNow1.Guid[8:], gNow2.Guid[8:]) >= 0 {
-			t.Errorf("GuidSS timestamps are not sortable. gNow1 should be less than gNow2.\ng1: %x\ng2: %x", gNow1.Guid[8:], gNow2.Guid[8:])
+		if gNow1.Compare(gNow2) >= 0 {
+			t.Errorf("GuidSS timestamps are not sortable. gNow1 should be less than gNow2.\ng1: %x\ng2: %x", gNow1.Guid, gNow2.Guid)
 		}
 	})
 
@@ -1078,6 +1134,17 @@ func TestSortableGuids(t *testing.T) {
 			t.Error("NewPG() and NewSS() produced the same Guid")
 		}
 	})
+}
+
+func TestNewLastByteIsRandom(t *testing.T) {
+	lastBytes := make(map[byte]struct{})
+	for range 1000 {
+		lastBytes[New()[GuidByteSize-1]] = struct{}{}
+	}
+
+	if len(lastBytes) < 128 {
+		t.Fatalf("New() produced only %d distinct last-byte values", len(lastBytes))
+	}
 }
 
 func TestCachePoolGetPut(t *testing.T) {

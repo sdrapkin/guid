@@ -3,38 +3,30 @@
 
 `Guid` is defined as `type Guid [16]byte` and filled with 128 cryptographically strong bits.
 
-[Go playground](https://go.dev/play/p/fXp5bA1qfQB)
+[Go playground](https://go.dev/play/p/BrA9RGfPQnq)
 ```go
 package main
 
 import (
 	"fmt"
-
 	"github.com/sdrapkin/guid"
 )
 
 func main() {
-	for range 4 {
-		fmt.Printf("%x\n", guid.New())
-	}
-	fmt.Println()
+	fmt.Printf("%-32s %s\n", "hex:", ".ToString()")
 	for range 4 {
 		g := guid.New()
-		fmt.Println(g.String())
+		fmt.Printf("%x %v\n", g[:], g)
 	}
 }
 ```
 
 ```
-79c9779af20dcd21fbe60f3b336ed08c
-da2026d38edca4371a476efd41333d23
-88c3033b002b0e73321509ef26de607f
-a84e961ff7f09f5210ea04585f152e73
-
-WF8MvK5CUOrI-enEuvS0jw
-AOp8Voi5knpu1mg3RjzmSg
-gxOQRIVR4B_uGHD6OP76XA
-Zo_hpnDxkOsAWLk1tIS6DA
+hex:                             .String()
+4c51e0cfe50bb64a7b325227cdaf6e2e TFHgz-ULtkp7MlInza9uLg
+f0672a16aad4a3312d61497435c7cdcf 8GcqFqrUozEtYUl0NcfNzw
+1f003beb2441f9bbd333a3ab879374a6 HwA76yRB-bvTM6Orh5N0pg
+29738cd630751c75e9d12f62e706fb2d KXOM1jB1HHXp0S9i5wb7LQ
 ```
 
 ## Why `guid`? 🔥
@@ -88,6 +80,8 @@ Beyond raw speed, `guid` offers:
 | `GuidPG`, `GuidSS` methods | Description |
 |---|---|
 | `.Timestamp()` `time.Time` | Extracts the UTC timestamp |
+| `GuidPG.Compare(other GuidPG)` `int` | Lexicographic comparison using big-endian byte order |
+| `GuidSS.Compare(other GuidSS)` `int` | Comparison using SQL Server's Guid byte ordering rules |
 
 ## Sequential Guids 🔥
 `guid` includes two special types `GuidPG` and `GuidSS` optimized for use as database primary keys (PostgreSQL and SQL Server). Their time-ordered composition helps prevent index fragmentation and improves `INSERT` performance compared to fully random Guids. Note that sequential sorting is only across `time.Now()` timestamp precision.
