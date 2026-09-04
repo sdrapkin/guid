@@ -3,17 +3,18 @@
 
 `Guid` is defined as `type Guid [16]byte` and filled with 128 cryptographically strong bits.
 
-[Go playground](https://go.dev/play/p/BrA9RGfPQnq)
+[Go playground](https://go.dev/play/p/PL7JOPKurT_R)
 ```go
 package main
 
 import (
 	"fmt"
+
 	"github.com/sdrapkin/guid"
 )
 
 func main() {
-	fmt.Printf("%-32s %s\n", "hex:", ".ToString()")
+	fmt.Printf("%-32s %s\n", "Hex:", ".String()")
 	for range 4 {
 		g := guid.New()
 		fmt.Printf("%x %v\n", g[:], g)
@@ -22,11 +23,11 @@ func main() {
 ```
 
 ```
-hex:                             .String()
-4c51e0cfe50bb64a7b325227cdaf6e2e TFHgz-ULtkp7MlInza9uLg
-f0672a16aad4a3312d61497435c7cdcf 8GcqFqrUozEtYUl0NcfNzw
-1f003beb2441f9bbd333a3ab879374a6 HwA76yRB-bvTM6Orh5N0pg
-29738cd630751c75e9d12f62e706fb2d KXOM1jB1HHXp0S9i5wb7LQ
+Hex:                             .String()
+0423137e347d73a9aae78c375972f8da BCMTfjR9c6mq54w3WXL42g
+97b755a7b8e5557d7124d6e744cec3b4 l7dVp7jlVX1xJNbnRM7DtA
+12f76b671fb3d77ca9ecbf24bc3a9056 EvdrZx-z13yp7L8kvDqQVg
+d881f42df5a2734f87b5c00ff9b221fd 2IH0LfWic0-HtcAP-bIh_Q
 ```
 
 ## Why `guid`? 🔥
