@@ -4,10 +4,10 @@
 package guid
 
 import (
-	"bytes"
 	cryptoRand "crypto/rand"
 	"encoding"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 	"unsafe"
+	"uuid"
 )
 
 //==============================================
@@ -67,6 +68,8 @@ var (
 	_ encoding.BinaryUnmarshaler = &Guid{}
 	_ encoding.TextAppender      = Guid{}
 	_ io.Reader                  = reader{}
+	_ json.Marshaler             = Guid{}
+	_ json.Unmarshaler           = &Guid{}
 )
 
 //==============================================
@@ -74,7 +77,9 @@ var (
 //==============================================
 
 // Guid is a 16-byte (128-bit) cryptographically random value.
-type Guid [GuidByteSize]byte
+type Guid struct {
+	UUID uuid.UUID
+}
 
 // GuidPG is a 16-byte (128-bit) PostgreSQL sortable Guid formed as [8-byte time.Now() timestamp][8 random bytes]
 // GuidPG is optimized for use as a PostgreSQL index key.
@@ -108,12 +113,31 @@ type guidCache struct {
 // Compare compares the Guid with another Guid (big-endian byte order).
 // Returns -1 if g < other, 0 if g == other, and 1 if g > other.
 func (g Guid) Compare(other Guid) int {
-	return bytes.Compare(g[:], other[:])
+	hi1 := binary.BigEndian.Uint64(g.UUID[:8])
+	hi2 := binary.BigEndian.Uint64(other.UUID[:8])
+
+	if hi1 != hi2 {
+		if hi1 < hi2 {
+			return -1
+		}
+		return 1
+	}
+
+	lo1 := binary.BigEndian.Uint64(g.UUID[8:])
+	lo2 := binary.BigEndian.Uint64(other.UUID[8:])
+
+	if lo1 < lo2 {
+		return -1
+	}
+	if lo1 > lo2 {
+		return 1
+	}
+	return 0
 }
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface for Guid.
 func (guid Guid) MarshalBinary() (data []byte, err error) {
-	return guid[:], nil
+	return guid.UUID[:], nil // value receiver creates a copy, so it's safe to return the slice directly.
 }
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface for Guid.
@@ -121,13 +145,13 @@ func (guid *Guid) UnmarshalBinary(data []byte) error {
 	if len(data) < GuidByteSize {
 		return ErrInvalidGuidSlice
 	}
-	copy(guid[:], data)
+	copy(guid.UUID[:], data)
 	return nil
 }
 
 // UnmarshalText implements encoding.TextUnmarshaler.
 func (guid *Guid) UnmarshalText(data []byte) error {
-	if ok := DecodeBase64URL(guid[:], data); !ok {
+	if ok := DecodeBase64URL(guid.UUID[:], data); !ok {
 		return ErrInvalidBase64UrlGuidEncoding
 	}
 	return nil
@@ -143,7 +167,6 @@ func (guid Guid) MarshalText() ([]byte, error) {
 // MarshalJSON implements the json.Marshaler interface.
 // It marshals the Guid to its Base64Url string representation.
 func (g Guid) MarshalJSON() ([]byte, error) {
-	//return json.Marshal(g.String())
 	gStringWithQuotes := make([]byte, GuidBase64UrlByteSize+2)
 	gStringWithQuotes[1+GuidBase64UrlByteSize], gStringWithQuotes[0] = '"', '"'
 	g.encodeBase64URL(gStringWithQuotes[1 : 1+GuidBase64UrlByteSize])
@@ -161,7 +184,7 @@ func (g *Guid) UnmarshalJSON(data []byte) error {
 	if len(data) != (GuidBase64UrlByteSize+2) ||
 		data[0] != '"' ||
 		data[GuidBase64UrlByteSize+1] != '"' ||
-		!DecodeBase64URL(g[:], data[1:1+GuidBase64UrlByteSize]) {
+		!DecodeBase64URL(g.UUID[:], data[1:1+GuidBase64UrlByteSize]) {
 		return fmt.Errorf("guid: cannot unmarshal JSON string %q into a Guid", string(data))
 	}
 	return nil
@@ -212,14 +235,14 @@ func (guid *Guid) encodeBase64URL(dst []byte) {
 	const limit = GuidByteSize - lengthMod3 // 15 bytes can be processed in groups of 3 bytes, leaving 1 byte at the end.
 
 	// Bounds Check Elimination
-	_ = guid[GuidByteSize-1]
+	_ = guid.UUID[GuidByteSize-1]
 	_ = dst[GuidBase64UrlByteSize-1]
 
 	j := 0 // Index in the output buffer
 
 	// Process the first 15 bytes (5 groups of 3 bytes). Each 3-byte group is converted to 4 Base64Url characters.
 	for i := 0; i < limit; i += 3 {
-		val := uint32(guid[i])<<16 | uint32(guid[i+1])<<8 | uint32(guid[i+2])
+		val := uint32(guid.UUID[i])<<16 | uint32(guid.UUID[i+1])<<8 | uint32(guid.UUID[i+2])
 
 		// Combine 3 bytes into a 24-bit integer and extract 4 6-bit indices.
 		dst[j] = base64UrlAlphabet[val>>18&0x3F]
@@ -230,7 +253,7 @@ func (guid *Guid) encodeBase64URL(dst []byte) {
 	}
 
 	// Handle the last byte, converted to 2 Base64Url characters.
-	b0 := guid[limit]
+	b0 := guid.UUID[limit]
 	dst[j] = base64UrlAlphabet[b0>>2]
 	dst[j+1] = base64UrlAlphabet[(b0&0x03)<<4]
 }
@@ -282,7 +305,7 @@ func (r reader) Read(b []byte) (int, error) {
 // The timestamp is stored in the first 8 bytes as nanoseconds since Unix epoch.
 // Returns the time.Time representation of when the Guid was created.
 func (g GuidPG) Timestamp() time.Time {
-	timestamp := int64(binary.BigEndian.Uint64(g.Guid[0:8])) // Extract timestamp from first 8 bytes
+	timestamp := int64(binary.BigEndian.Uint64(g.Guid.UUID[0:8])) // Extract timestamp from first 8 bytes
 	return time.Unix(0, timestamp).UTC()
 }
 
@@ -300,7 +323,7 @@ func (g GuidPG) Compare(other GuidPG) int {
 // The timestamp is stored in the last 8 bytes using SQL Server's Guid ordering rules.
 // Returns the time.Time representation of when the Guid was created.
 func (g GuidSS) Timestamp() time.Time {
-	encoded := binary.BigEndian.Uint64(g.Guid[8:]) // Extract timestamp from last 8 bytes (SQL Server format)
+	encoded := binary.BigEndian.Uint64(g.Guid.UUID[8:]) // Extract timestamp from last 8 bytes (SQL Server format)
 	timestamp := int64(bits.RotateLeft64(encoded, 16))
 	return time.Unix(0, timestamp).UTC()
 }
@@ -308,17 +331,80 @@ func (g GuidSS) Timestamp() time.Time {
 // GuidSS.Compare compares the SQL Server Guid with another SQL Server Guid using SQL Server's byte ordering rules.
 // Returns -1 if g < other, 0 if g == other, and 1 if g > other.
 func (g GuidSS) Compare(other GuidSS) int {
-	// SQL Server compares bytes in order: 10-15, 8-9, 6-7, 4-5, 0-3
-	order := [...]int{10, 11, 12, 13, 14, 15, 8, 9, 6, 7, 4, 5, 0, 1, 2, 3}
-	for _, idx := range order {
-		if g.Guid[idx] < other.Guid[idx] {
-			return -1
-		}
-		if g.Guid[idx] > other.Guid[idx] {
-			return 1
-		}
+	// SQL Server compares bytes in order: 10, 11, 12, 13, 14, 15, 8, 9, 6, 7, 4, 5, 0, 1, 2, 3
+	// https://source.dot.net/#System.Data.Common/System/Data/SQLTypes/SQLGuid.cs,116
+
+	// High 64 bits target order: bytes [10, 11, 12, 13, 14, 15, 8, 9]
+	gHi := bits.RotateLeft64(binary.BigEndian.Uint64(g.Guid.UUID[8:]), 16)
+	oHi := bits.RotateLeft64(binary.BigEndian.Uint64(other.Guid.UUID[8:]), 16)
+
+	if gHi < oHi {
+		return -1
 	}
+	if gHi > oHi {
+		return 1
+	}
+
+	// High bits match; compute low 64 bits lazily.
+	// Low 64 bits target order: bytes [6, 7, 4, 5, 0, 1, 2, 3]
+	ga := binary.BigEndian.Uint64(g.Guid.UUID[:8])
+	oa := binary.BigEndian.Uint64(other.Guid.UUID[:8])
+
+	/* Rearrange ga's 8 bytes from standard layout [0,1,2,3,4,5,6,7] to SQL Server's target layout [6,7,4,5,0,1,2,3]:
+
+	ga bit layout (MSB to LSB):
+	Bits 63..32 = Bytes [0,1,2,3]
+	Bits 31..16 = Bytes [4,5]
+	Bits 15..0  = Bytes [6,7]
+
+	1. (ga << 48): Shifts Bytes [6,7] left by 6 bytes (48 bits).
+	2. ((ga & 0x00000000FFFF0000) << 16): Isolates Bytes [4,5] and shifts them left by 2 bytes (16 bits).
+	3. (ga >> 32): Shifts Bytes [0,1,2,3] right by 4 bytes (32 bits).
+
+	Combining with bitwise OR (|) yields a uint64 byte-ordered: [6,7,4,5,0,1,2,3] */
+	gLo := (ga << 48) | ((ga & 0x00000000FFFF0000) << 16) | (ga >> 32)
+	oLo := (oa << 48) | ((oa & 0x00000000FFFF0000) << 16) | (oa >> 32)
+
+	if gLo < oLo {
+		return -1
+	}
+	if gLo > oLo {
+		return 1
+	}
+
 	return 0
+	/*
+		for _, i := range [16]int{
+			10, 11, 12, 13, 14, 15, 8, 9, 6, 7, 4, 5, 0, 1, 2, 3,
+		} {
+			if g.Guid.UUID[i] < other.Guid.UUID[i] {
+				return -1
+			}
+			if g.Guid.UUID[i] > other.Guid.UUID[i] {
+				return 1
+			}
+		}
+		return 0
+	*/
+}
+
+// LoadFromSQLServerBytes loads a GuidSS from a 16-byte slice in SQL Server order.
+// It swaps the bytes into the correct order for GuidSS.
+func (g *GuidSS) LoadFromSQLServerBytes(src []byte) error {
+	if len(src) != GuidByteSize {
+		return ErrInvalidGuidSlice
+	}
+
+	*g = GuidSS{
+		UUID: [16]byte{
+			src[3], src[2], src[1], src[0], // Swap bytes 0-3
+			src[5], src[4], // Swap bytes 4-5
+			src[7], src[6], // Swap bytes 6-7
+			src[8], src[9], src[10], src[11], src[12], src[13], src[14], src[15], // Bytes 8-15 remain in order
+		},
+	}
+
+	return nil
 }
 
 //==============================================
@@ -330,7 +416,7 @@ func Nil() Guid { return Guid{} }
 
 // Max returns the maximum Guid, with all 128 bits set to one.
 func Max() Guid {
-	return Guid{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+	return Guid{UUID: [16]byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}}
 }
 
 // New generates a new cryptographically secure Guid.
@@ -342,7 +428,7 @@ func New() (g Guid) {
 		cryptoRand.Read(guidCacheRef.buffer[:]) // Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
 	}
 
-	copy(g[:], guidCacheRef.buffer[index*GuidByteSize:]) // Extract GUID at current index
+	copy(g.UUID[:], guidCacheRef.buffer[index*GuidByteSize:]) // Extract GUID at current index
 
 	guidCacheRef.index = uint8(index + 1) // Increment index for next call, uint8 wraps from 255 to 0 automatically
 	guidCachePool.Put(guidCacheRef)
@@ -356,7 +442,7 @@ func NewPG() GuidPG {
 
 func newPG(ts int64) (gpg GuidPG) {
 	gpg.Guid = New()
-	binary.BigEndian.PutUint64(gpg.Guid[0:8], uint64(ts))
+	binary.BigEndian.PutUint64(gpg.Guid.UUID[0:8], uint64(ts))
 	return
 }
 
@@ -370,7 +456,7 @@ func newSS(ts int64) (gss GuidSS) {
 	// https://github.com/microsoft/referencesource/blob/5697c29004a34d80acdaf5742d7e699022c64ecd/System.Data/System/Data/SQLTypes/SQLGuid.cs
 	gss.Guid = New()
 	encoded := bits.RotateLeft64(uint64(ts), -16)
-	binary.BigEndian.PutUint64(gss.Guid[8:], encoded)
+	binary.BigEndian.PutUint64(gss.Guid.UUID[8:], encoded)
 	return
 }
 
@@ -390,7 +476,7 @@ func Parse(s string) (g Guid, err error) {
 	// Zero-copy conversion of a string to a byte slice
 	sBytes := unsafe.Slice(unsafe.StringData(s), GuidBase64UrlByteSize)
 
-	if ok := DecodeBase64URL(g[:], sBytes); !ok {
+	if ok := DecodeBase64URL(g.UUID[:], sBytes); !ok {
 		return Guid{}, ErrInvalidBase64UrlGuidEncoding
 	}
 	return g, nil
@@ -414,7 +500,7 @@ func ParseBytes(src []byte) (g Guid, err error) {
 		return Guid{}, ErrInvalidBase64UrlGuidEncoding
 	}
 
-	if ok := DecodeBase64URL(g[:], src); !ok {
+	if ok := DecodeBase64URL(g.UUID[:], src); !ok {
 		return Guid{}, ErrInvalidBase64UrlGuidEncoding
 	}
 	return g, nil
@@ -430,7 +516,7 @@ func FromBytes(src []byte) (Guid, error) {
 		return Guid{}, ErrInvalidGuidSlice
 	}
 	var g Guid
-	copy(g[:], src)
+	copy(g.UUID[:], src)
 	return g, nil
 }
 

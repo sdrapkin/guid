@@ -5,11 +5,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"reflect"
 	"runtime"
+	"slices"
 	"sync"
 	"testing"
 	"time"
+	"uuid"
 )
 
 //*******************
@@ -50,7 +53,7 @@ var testcases = []struct {
 }
 
 func TestGuidLength(t *testing.T) {
-	guidLength := len(New())
+	guidLength := len(New().UUID)
 	if guidLength != GuidByteSize {
 		t.Errorf("Generated Guid should have length [%d], got [%d]", GuidByteSize, guidLength)
 	}
@@ -189,7 +192,7 @@ func TestGuid_ToBase64Url_RoundTrip(t *testing.T) {
 
 		// Convert bytes to Guid
 		var g1 Guid
-		copy(g1[:], bytes)
+		copy(g1.UUID[:], bytes)
 
 		// Convert Guid to Base64Url string
 		b64url := g1.String()
@@ -249,11 +252,11 @@ func TestGuid_Marshaling_ZeroAndNilInputs(t *testing.T) {
 		if len(marshalledSlice) != GuidByteSize {
 			t.Errorf("got %d bytes, want %d", len(marshalledSlice), GuidByteSize)
 		}
-		if !bytes.Equal(g2[:], marshalledSlice) {
+		if !bytes.Equal(g2.UUID[:], marshalledSlice) {
 			t.Errorf("marshalled slice is not equal to the original guid")
 		}
-		g2[0]++
-		if bytes.Equal(g2[:], marshalledSlice) {
+		g2.UUID[0] ^= 0x01
+		if bytes.Equal(g2.UUID[:], marshalledSlice) {
 			t.Errorf("changes to original guid propagate to the marshalled slice")
 		}
 	})
@@ -335,11 +338,11 @@ func TestParseAndDecodeBase64URL(t *testing.T) {
 
 		// Test with DecodeBase64URL
 		var g2 Guid
-		ok := DecodeBase64URL(g2[:], []byte(tc.base64Url))
+		ok := DecodeBase64URL(g2.UUID[:], []byte(tc.base64Url))
 		if !ok {
 			t.Errorf("DecodeBase64URL(%q) failed", tc.base64Url)
 		}
-		if string(g2[:]) != string(g1[:]) {
+		if string(g2.UUID[:]) != string(g1.UUID[:]) {
 			t.Errorf("DecodeBase64URL result mismatch")
 		}
 	}
@@ -352,13 +355,13 @@ func TestParseAndDecodeBase64URL(t *testing.T) {
 
 	// Test with invalid input
 	var g Guid
-	if DecodeBase64URL(g[:], []byte("")) {
+	if DecodeBase64URL(g.UUID[:], []byte("")) {
 		t.Error("DecodeBase64URL(\"\") should fail")
 	}
-	if DecodeBase64URL(g[:], []byte("short")) {
+	if DecodeBase64URL(g.UUID[:], []byte("short")) {
 		t.Error("DecodeBase64URL(\"short\") should fail")
 	}
-	if DecodeBase64URL(g[:], []byte("!@#$%^&*()_+{}|")) {
+	if DecodeBase64URL(g.UUID[:], []byte("!@#$%^&*()_+{}|")) {
 		t.Error("DecodeBase64URL(invalid chars) should fail")
 	}
 
@@ -368,7 +371,7 @@ func TestParseAndDecodeBase64URL(t *testing.T) {
 	if len(unicodeStrBytes) != GuidBase64UrlByteSize {
 		t.Fatalf("Unicode test setup failure: expected 22 bytes, got %d", len(unicodeStrBytes))
 	}
-	if DecodeBase64URL(g[:], unicodeStrBytes) {
+	if DecodeBase64URL(g.UUID[:], unicodeStrBytes) {
 		t.Errorf("DecodeBase64URL(%q) should fail", unicodeStr)
 	}
 	if _, err := Parse(unicodeStr); err == nil {
@@ -378,8 +381,8 @@ func TestParseAndDecodeBase64URL(t *testing.T) {
 
 func TestMax(t *testing.T) {
 	gmax := Guid{}
-	for i := range len(gmax) {
-		gmax[i] = 0xFF
+	for i := range len(gmax.UUID) {
+		gmax.UUID[i] = 0xFF
 	}
 	if gmax != Max() {
 		t.Error("guid.Max is wrong!")
@@ -731,7 +734,7 @@ func TestUnmarshalJSON(t *testing.T) {
 
 func TestFromBytes(t *testing.T) {
 	g1 := New()
-	g2, err := FromBytes(g1[:])
+	g2, err := FromBytes(g1.UUID[:])
 	if err != nil {
 		t.Fatalf("FromBytes failed: %v", err)
 	}
@@ -739,12 +742,12 @@ func TestFromBytes(t *testing.T) {
 		t.Errorf("FromBytes mismatch: got %v, want %v", g2, g1)
 	}
 	// Too short
-	_, err = FromBytes(g1[:15])
+	_, err = FromBytes(g1.UUID[:15])
 	if err == nil {
 		t.Error("FromBytes should fail on short slice")
 	}
 	// Too long
-	long := append(g1[:], g1[:4]...)
+	long := append(g1.UUID[:], g1.UUID[:4]...)
 	g2, err = FromBytes(long)
 	if err != nil {
 		t.Errorf("FromBytes failed on long slice: %v", err)
@@ -758,9 +761,9 @@ func TestFromBytes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
-	for i := range len(g2) {
-		if b[i] != g2[i] {
-			t.Fatalf("FromBytes() got %v expected %v\n", g2[:], b)
+	for i := range len(g2.UUID) {
+		if b[i] != g2.UUID[i] {
+			t.Fatalf("FromBytes() got %v expected %v\n", g2.UUID[:], b)
 		}
 	}
 }
@@ -858,7 +861,7 @@ func TestReadConcurrent(t *testing.T) {
 	}
 
 	// Let the threads spin for a bit, then shut them down.
-	time.Sleep(time.Millisecond * 750)
+	time.Sleep(time.Millisecond * 500)
 	close(doneChan)
 	wg.Wait()
 
@@ -915,7 +918,7 @@ func TestReadLiteConcurrent(t *testing.T) {
 	}
 
 	// Let the threads spin for a bit, then shut them down.
-	time.Sleep(time.Millisecond * 750)
+	time.Sleep(time.Millisecond * 500)
 	close(doneChan)
 	wg.Wait()
 
@@ -943,14 +946,14 @@ func TestDecodeBase64URL_LastByteInvalid(t *testing.T) {
 	src[21] = '!'                     // invalid Base64Url
 
 	var g Guid
-	ok := DecodeBase64URL(g[:], src)
+	ok := DecodeBase64URL(g.UUID[:], src)
 	if ok {
 		t.Error("DecodeBase64URL should fail when final 2 chars are invalid")
 	}
 }
 
 func TestGuid_Compare(t *testing.T) {
-	base := Guid{0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+	base := Guid{UUID: [16]byte{0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}}
 
 	tests := []struct {
 		name     string
@@ -965,25 +968,25 @@ func TestGuid_Compare(t *testing.T) {
 		},
 		{
 			name:     "High 64-bit smaller (hi1 < hi2 -> returns -1)",
-			g1:       Guid{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			g1:       Guid{UUID: [16]byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
 			g2:       base,
 			expected: -1,
 		},
 		{
 			name:     "High 64-bit larger (hi1 > hi2 -> returns 1)",
-			g1:       Guid{0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			g1:       Guid{UUID: [16]byte{0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
 			g2:       base,
 			expected: 1,
 		},
 		{
 			name:     "High 64-bit equal, Low 64-bit smaller (lo1 < lo2 -> returns -1)",
-			g1:       Guid{0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			g1:       Guid{UUID: [16]byte{0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
 			g2:       base,
 			expected: -1,
 		},
 		{
 			name:     "High 64-bit equal, Low 64-bit larger (lo1 > lo2 -> returns 1)",
-			g1:       Guid{0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			g1:       Guid{UUID: [16]byte{0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
 			g2:       base,
 			expected: 1,
 		},
@@ -999,7 +1002,7 @@ func TestGuid_Compare(t *testing.T) {
 }
 
 func TestGuidPG_Compare(t *testing.T) {
-	base := GuidPG{Guid: Guid{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}}
+	base := GuidPG{UUID: [16]byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}}
 	tests := []struct {
 		name     string
 		other    GuidPG
@@ -1007,7 +1010,7 @@ func TestGuidPG_Compare(t *testing.T) {
 	}{
 		{
 			name:     "less",
-			other:    GuidPG{Guid: Guid{0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+			other:    GuidPG{UUID: [16]byte{0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
 			expected: -1,
 		},
 		{
@@ -1017,7 +1020,7 @@ func TestGuidPG_Compare(t *testing.T) {
 		},
 		{
 			name:     "greater",
-			other:    GuidPG{Guid: Guid{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+			other:    GuidPG{UUID: [16]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
 			expected: 1,
 		},
 	}
@@ -1042,7 +1045,7 @@ func TestGuidSS_Compare(t *testing.T) {
 	for _, index := range order {
 		t.Run(fmt.Sprintf("byte_%d", index), func(t *testing.T) {
 			greater := GuidSS{}
-			greater.Guid[index] = 1
+			greater.Guid.UUID[index] = 1
 
 			if got := base.Compare(greater); got != -1 {
 				t.Errorf("Compare() = %d, want -1", got)
@@ -1051,6 +1054,65 @@ func TestGuidSS_Compare(t *testing.T) {
 				t.Errorf("reverse Compare() = %d, want 1", got)
 			}
 		})
+	}
+}
+
+func TestGuidSS_Compare_SQLServerOrdering(t *testing.T) {
+	values := []GuidSS{
+		{UUID: uuid.MustParse("00000000-0000-0000-0000-000000000011")},
+		{UUID: uuid.MustParse("00000000-0000-0000-0000-000000001100")},
+		{UUID: uuid.MustParse("00000000-0000-0000-0000-000000110000")},
+		{UUID: uuid.MustParse("00000000-0000-0000-0000-000011000000")},
+		{UUID: uuid.MustParse("00000000-0000-0000-0000-001100000000")},
+		{UUID: uuid.MustParse("00000000-0000-0000-0000-110000000000")},
+		{UUID: uuid.MustParse("00000000-0000-0000-0011-000000000000")},
+		{UUID: uuid.MustParse("00000000-0000-0000-1100-000000000000")},
+		{UUID: uuid.MustParse("00000000-0000-0011-0000-000000000000")},
+		{UUID: uuid.MustParse("00000000-0000-1100-0000-000000000000")},
+		{UUID: uuid.MustParse("00000000-0011-0000-0000-000000000000")},
+		{UUID: uuid.MustParse("00000000-1100-0000-0000-000000000000")},
+		{UUID: uuid.MustParse("00000011-0000-0000-0000-000000000000")},
+		{UUID: uuid.MustParse("00001100-0000-0000-0000-000000000000")},
+		{UUID: uuid.MustParse("00110000-0000-0000-0000-000000000000")},
+		{UUID: uuid.MustParse("11000000-0000-0000-0000-000000000000")},
+	}
+
+	expected := []GuidSS{
+		{UUID: uuid.MustParse("00000011-0000-0000-0000-000000000000")},
+		{UUID: uuid.MustParse("00001100-0000-0000-0000-000000000000")},
+		{UUID: uuid.MustParse("00110000-0000-0000-0000-000000000000")},
+		{UUID: uuid.MustParse("11000000-0000-0000-0000-000000000000")},
+		{UUID: uuid.MustParse("00000000-0011-0000-0000-000000000000")},
+		{UUID: uuid.MustParse("00000000-1100-0000-0000-000000000000")},
+		{UUID: uuid.MustParse("00000000-0000-0011-0000-000000000000")},
+		{UUID: uuid.MustParse("00000000-0000-1100-0000-000000000000")},
+		{UUID: uuid.MustParse("00000000-0000-0000-0011-000000000000")},
+		{UUID: uuid.MustParse("00000000-0000-0000-1100-000000000000")},
+		{UUID: uuid.MustParse("00000000-0000-0000-0000-000000000011")},
+		{UUID: uuid.MustParse("00000000-0000-0000-0000-000000001100")},
+		{UUID: uuid.MustParse("00000000-0000-0000-0000-000000110000")},
+		{UUID: uuid.MustParse("00000000-0000-0000-0000-000011000000")},
+		{UUID: uuid.MustParse("00000000-0000-0000-0000-001100000000")},
+		{UUID: uuid.MustParse("00000000-0000-0000-0000-110000000000")},
+	}
+
+	for iteration := range 100 {
+		sorted := slices.Clone(values)
+
+		rand.Shuffle(len(sorted), func(i, j int) {
+			sorted[i], sorted[j] = sorted[j], sorted[i]
+		})
+
+		slices.SortFunc(sorted, GuidSS.Compare)
+
+		if !slices.Equal(sorted, expected) {
+			t.Fatalf(
+				"unexpected SQL Server ordering [iteration %d]:\n got:  %v\n want: %v",
+				iteration,
+				sorted,
+				expected,
+			)
+		}
 	}
 }
 
@@ -1079,7 +1141,7 @@ func TestSortableGuids(t *testing.T) {
 
 		// Test timestamp encoding against a known value
 		gFixed := newPG(0x1122334455667788)
-		if hex.EncodeToString(gFixed.Guid[:8]) != "1122334455667788" {
+		if hex.EncodeToString(gFixed.Guid.UUID[:8]) != "1122334455667788" {
 			t.Errorf("Invalid timestamp encoding in newPG")
 		}
 
@@ -1092,8 +1154,8 @@ func TestSortableGuids(t *testing.T) {
 			t.Errorf("GuidPG timestamp mismatch: got %d, want %d", g1.Timestamp().UnixNano(), ts1)
 		}
 
-		if bytes.Compare(g1.Guid[:], g2.Guid[:]) >= 0 {
-			t.Errorf("GuidPGs are not sortable. g1 should be less than g2.\ng1: %x\ng2: %x", g1.Guid, g2.Guid)
+		if bytes.Compare(g1.Guid.UUID[:], g2.Guid.UUID[:]) >= 0 {
+			t.Errorf("GuidPGs are not sortable. g1 should be less than g2.\ng1: %x\ng2: %x", g1.Guid.UUID, g2.Guid.UUID)
 		}
 	})
 
@@ -1110,7 +1172,7 @@ func TestSortableGuids(t *testing.T) {
 
 		// Test timestamp encoding against a known value
 		gFixed := newSS(0x1122334455667788)
-		if hex := hex.EncodeToString(gFixed.Guid[8:]); hex != "7788112233445566" {
+		if hex := hex.EncodeToString(gFixed.Guid.UUID[8:]); hex != "7788112233445566" {
 			t.Errorf("Invalid timestamp encoding in newSS: %s", hex)
 		}
 
@@ -1139,7 +1201,7 @@ func TestSortableGuids(t *testing.T) {
 func TestNewLastByteIsRandom(t *testing.T) {
 	lastBytes := make(map[byte]struct{})
 	for range 1000 {
-		lastBytes[New()[GuidByteSize-1]] = struct{}{}
+		lastBytes[New().UUID[GuidByteSize-1]] = struct{}{}
 	}
 
 	if len(lastBytes) < 128 {
@@ -1292,8 +1354,10 @@ func ExampleNew() {
 }
 
 func ExampleGuid_String() {
-	// g is a 16-byte Guid represented as a hex string "0123456789abcdef0123456789abcdef"
-	var g Guid = [16]byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe}
-	fmt.Println(g) // calls g.String(), which returns the Base64Url encoded string
+	// g is a 16-byte Guid represented as a hex string "0123456789abcdef1032547698badcfe"
+	var g Guid = Guid{UUID: [16]byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe}}
+	fmt.Println(g)      // calls g.String(), which returns the Base64Url encoded string
+	fmt.Println(g.UUID) // calls g.UUID.String(), which returns the standard UUID string representation
 	// Output: ASNFZ4mrze8QMlR2mLrc_g
+	// 01234567-89ab-cdef-1032-547698badcfe
 }

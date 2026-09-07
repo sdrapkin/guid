@@ -117,16 +117,16 @@ func Benchmark_guid_New_x10(b *testing.B) {
 func Benchmark_guid_CryptoRandRead_x10(b *testing.B) {
 	var g Guid
 	for b.Loop() {
-		cryptoRand.Read(g[:])
-		cryptoRand.Read(g[:])
-		cryptoRand.Read(g[:])
-		cryptoRand.Read(g[:])
-		cryptoRand.Read(g[:])
-		cryptoRand.Read(g[:])
-		cryptoRand.Read(g[:])
-		cryptoRand.Read(g[:])
-		cryptoRand.Read(g[:])
-		cryptoRand.Read(g[:])
+		cryptoRand.Read(g.UUID[:])
+		cryptoRand.Read(g.UUID[:])
+		cryptoRand.Read(g.UUID[:])
+		cryptoRand.Read(g.UUID[:])
+		cryptoRand.Read(g.UUID[:])
+		cryptoRand.Read(g.UUID[:])
+		cryptoRand.Read(g.UUID[:])
+		cryptoRand.Read(g.UUID[:])
+		cryptoRand.Read(g.UUID[:])
+		cryptoRand.Read(g.UUID[:])
 	}
 }
 
@@ -500,7 +500,7 @@ func setupBenchGuids() {
 				panic(fmt.Sprintf("Failed to decode hex string %q: %v", tc.guidAsHex, err))
 			}
 			var g Guid
-			copy(g[:], bytes)
+			copy(g.UUID[:], bytes)
 			benchGuids[i] = g
 		}
 	}
@@ -521,7 +521,7 @@ func Benchmark_base64_RawURLEncoding_EncodeToString_x20(b *testing.B) {
 	setupBenchGuids()
 	for b.Loop() {
 		for _, g := range benchGuids {
-			_ = base64.RawURLEncoding.EncodeToString(g[:])
+			_ = base64.RawURLEncoding.EncodeToString(g.UUID[:])
 		}
 	}
 }
@@ -541,7 +541,7 @@ func Benchmark_base64_RawURLEncoding_Encode_x20(b *testing.B) {
 	buffer := make([]byte, GuidBase64UrlByteSize)
 	for b.Loop() {
 		for _, g := range benchGuids {
-			base64.RawURLEncoding.Encode(buffer, g[:])
+			base64.RawURLEncoding.Encode(buffer, g.UUID[:])
 		}
 	}
 }
