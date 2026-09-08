@@ -27,3 +27,5 @@ coverage.txt
 *.xlsx
 *.svg
 
+#vscode
+.vscode/
