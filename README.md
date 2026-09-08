@@ -1,9 +1,9 @@
 # guid [![name](https://goreportcard.com/badge/github.com/sdrapkin/guid)](https://goreportcard.com/report/github.com/sdrapkin/guid) [![codecov](https://codecov.io/github/sdrapkin/guid/branch/master/graph/badge.svg?token=ARQFUQD5VP)](https://codecov.io/github/sdrapkin/guid) [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#uuid) 
 ## Fast cryptographically secure Guid generator for Go.<br>By [Stan Drapkin](https://github.com/sdrapkin/).
 
-`Guid` is defined as `type Guid [16]byte` and filled with 128 cryptographically strong bits.
+`Guid` is a 16-byte struct filled with 128 cryptographically strong bits. Its bytes are available through `g.UUID[:]`.
 
-[Go playground](https://go.dev/play/p/PL7JOPKurT_R)
+[Go playground](https://go.dev/play/p/8b7Xk6gzpHI)
 ```go
 package main
 
@@ -17,7 +17,7 @@ func main() {
 	fmt.Printf("%-32s %s\n", "Hex:", ".String()")
 	for range 4 {
 		g := guid.New()
-		fmt.Printf("%x %v\n", g[:], g)
+		fmt.Printf("%x %v\n", g.UUID[:], g)
 	}
 }
 ```
@@ -32,26 +32,24 @@ d881f42df5a2734f87b5c00ff9b221fd 2IH0LfWic0-HtcAP-bIh_Q
 
 ## Why `guid`? 🔥
 
-`guid` is a high-performance, cryptographically secure UUID/GUID (Globally Unique Identifier) generator for Go. It's built for speed without compromising on security, offering a significant performance advantage—up to **10x faster** than `github.com/google/uuid`.
+`guid` is a high-performance, cryptographically secure UUID/GUID (Globally Unique Identifier) generator for Go. It is built for speed without compromising on security.
 
 Beyond raw speed, `guid` offers:
 
 * **Cryptographically Strong**: Generates 128 cryptographically secure bits for robust, unique identifiers.
-* **Optimized for Databases**: Includes special `GuidPG` and `GuidSS` types that generate sequential Guids, dramatically improving `INSERT` performance and preventing index fragmentation in PostgreSQL and SQL Server databases.
-* **Seamless Interoperability**: Easily integrate with existing `google/uuid` codebases, and even boost `uuid`'s performance by up to **4x** using `guid.Reader`.
+* **Optimized for Databases**: Includes special `GuidPG` and `GuidSS` types that generate sequential Guids, dramatically improving `INSERT` performance and preventing index fragmentation in **PostgreSQL** and **SQL Server** databases.
+* **Seamless Interoperability**: Easily integrate with existing `uuid.UUID` codebases, and use `guid.Reader` as an `io.Reader` for workloads that benefit from its fast random-byte implementation.
 * **FIPS 140 Compatibility**: Can be used in Go environments configured for FIPS 140 mode.
 * **Zero Allocations for Core Operations**: `guid.New()` generates new Guids with no allocations; string conversion via `String()` allocates the returned string as expected.
 
-## Guid is ~10x faster than `github.com/google/uuid` 🔥
+## Performance : `Guid` is ~8x faster than `uuid.UUID` 🔥
 
-* `guid.New()` is  6~10 ns 
-* `guid.NewString()` is 40~60 ns
-* `String()` on existing guid is ~40 ns
-* multi-goroutine calls do not increase per-call latency
-* if your library is faster - please let me know!
+Performance depends on the Go version, platform, CPU, workload, and benchmark settings. The benchmark source contains the command and environment for the recorded results; run `go test -run=^$ -bench=. -benchmem -benchtime=4s` to measure locally.
+
+This package uses pooled random bytes for small reads and falls back to `crypto/rand.Read` for requests larger than 512 bytes. All generation and reader operations remain cryptographically backed by `crypto/rand`.
 
 ## API Overview
-**All APIs are safe for concurrent use by multiple goroutines.**
+Functions and value-receiver methods are safe for concurrent use when called with independent values and buffers. Do not call methods that mutate the same pointer receiver concurrently.
 | Functions | Description |
 |---|---|
 | `guid.New()` `Guid`           | Generate a new cryptographically secure Guid |
@@ -61,8 +59,8 @@ Beyond raw speed, `guid` offers:
 | `guid.Parse(s string)` `(Guid, error)` | Parse a Base64Url string into a Guid |
 | `guid.MustParse(s string)` `Guid` | Parse a Base64Url string or panic on invalid input |
 | `guid.ParseBytes(src []byte)` `(Guid, error)` | Parse Base64Url bytes to a Guid |
-| `guid.FromBytes(src []byte)` `(Guid, error)` | Parse a 16-byte slice into a Guid |
-| `guid.DecodeBase64URL(dst []byte, src []byte)` `(ok bool)` | Decode a 22-char Base64Url into a Guid |
+| `guid.FromBytes(src []byte)` `(Guid, error)` | Create a Guid from a slice |
+| `guid.DecodeBase64URL(dst []byte, src []byte)` `(ok bool)` | Decode the first 22 bytes of a Base64Url input into `dst` |
 | `guid.Read(p []byte)` `(int, error)` | Fill a byte slice with secure random bytes |
 | `guid.Reader` 🔥 implements `io.Reader` | Faster alternative to `crypto/rand` |
 | `guid.Nil()` `Guid` | The zero-value Guid |
@@ -71,21 +69,25 @@ Beyond raw speed, `guid` offers:
 | `Guid` methods | Description |
 |---|---|
 | `.String()` `string` | Encodes the Guid into a 22-char Base64Url string (`fmt.Stringer`) |
-| `.EncodeBase64URL(dst []byte)` `error` | Encodes into a len(22) destination slice |
+| `.EncodeBase64URL(dst []byte)` `error` | Encodes into a destination slice |
 | `.Compare(other Guid)` `int` | Lexicographic comparison using big-endian byte order |
 | `.MarshalBinary()` | Implements `encoding.BinaryMarshaler` |
 | `.UnmarshalBinary()` | Implements `encoding.BinaryUnmarshaler` |
 | `.MarshalText()` | Implements `encoding.TextMarshaler` |
 | `.UnmarshalText()` | Implements `encoding.TextUnmarshaler` |
+| `.AppendText(b []byte)` `([]byte, error)` | Appends the Base64Url encoding to `b` (`encoding.TextAppender`) |
+| `.MarshalJSON()` `([]byte, error)` | Encodes the Guid as a JSON string |
+| `.UnmarshalJSON(data []byte)` `error` | Decodes a JSON string or `null` into the Guid |
 
 | `GuidPG`, `GuidSS` methods | Description |
 |---|---|
 | `.Timestamp()` `time.Time` | Extracts the UTC timestamp |
 | `GuidPG.Compare(other GuidPG)` `int` | Lexicographic comparison using big-endian byte order |
 | `GuidSS.Compare(other GuidSS)` `int` | Comparison using SQL Server's Guid byte ordering rules |
+| `GuidSS.LoadFromSQLServerBytes(src []byte)` `error` | Loads 16 bytes into `GuidSS` in SQL Server byte order |
 
 ## Sequential Guids 🔥
-`guid` includes two special types `GuidPG` and `GuidSS` optimized for use as database primary keys (PostgreSQL and SQL Server). Their time-ordered composition helps prevent index fragmentation and improves `INSERT` performance compared to fully random Guids. Note that sequential sorting is only across `time.Now()` timestamp precision.
+`guid` includes two special types, `GuidPG` and `GuidSS`, with time-ordered layouts intended for database keys. They can improve locality for workloads whose database ordering matches the corresponding layout, but actual index and `INSERT` behavior depends on the database, schema, and workload. Ordering is only guaranteed at the precision of the `time.Now()` timestamp used to create each value.
 
 * **`guid.NewPG()`**: Generates a `GuidPG`, which is sortable in **PostgreSQL**.
  	- It is structured as `[8-byte timestamp][8 random bytes]`.
@@ -93,25 +95,36 @@ Beyond raw speed, `guid` offers:
 	- It is structured as `[8 random bytes][8-byte SQL Server-ordered timestamp]`.
 * `.Timestamp()` on `GuidPG`/`GuidSS` returns Guid creation time as UTC `time.Time`.
 
-Both `GuidPG` and `GuidSS` are nearly as fast as `guid.New()`. They can be used as a standard `Guid` and support the same interfaces.
+Both `GuidPG` and `GuidSS` contain an embedded `Guid`, so they expose its value methods and interfaces in addition to their timestamp and comparison methods.
 
 ***
 
 ### Sequential Guid Example:
 
 ```go
-fmt.Printf("%s\t       %s\t\t\t\t%s\t       %s\n",
+package main
+
+import (
+	"encoding/hex"
+	"fmt"
+
+	"github.com/sdrapkin/guid"
+)
+
+func main() {
+	fmt.Printf("%s\t       %s\t\t\t\t%s\t       %s\n",
 	"gpg.String()", "hex(gpg)", "gss.String()", "hex(gss)")
-for range 10 {
+	for range 10 {
+		gpg := guid.NewPG()
+		gss := guid.NewSS()
+		fmt.Println(&gpg, hex.EncodeToString(gpg.UUID[:]), &gss, hex.EncodeToString(gss.UUID[:]))
+	}
+
 	gpg := guid.NewPG()
 	gss := guid.NewSS()
-	fmt.Println(&gpg, hex.EncodeToString(gpg.Guid[:]), &gss, hex.EncodeToString(gss.Guid[:]))
+	fmt.Println(gpg.Timestamp()) // time.Time
+	fmt.Println(gss.Timestamp()) // time.Time
 }
-
-gpg := guid.NewPG()
-gss := guid.NewSS()
-fmt.Println(gpg.Timestamp()) // time.Time
-fmt.Println(gss.Timestamp()) // time.Time
 ```
 ```
 gpg.String()           hex(gpg)                         gss.String()           hex(gss)
@@ -129,33 +142,31 @@ GFEU88w5PqTsYX0kcZzL6Q 185114f3cc393ea4ec617d24719ccbe9 yFIlRwKZJNo-pBhRFPPMOQ c
 2025-07-11 03:32:47.3597457 +0000 UTC
 ```
 
-## Interoperability with `google/uuid` 🔥
-* If you must keep using `google/uuid`, use `guid` to increase performance by **2~4x**:
+## Interoperability with Go's `uuid.UUID`
+
+Go 1.27's built-in [`uuid.UUID`](https://pkg.go.dev/uuid) is a `[16]byte` type. `Guid.UUID`, and the promoted `UUID` field on `GuidPG` and `GuidSS`, can be converted by value:
 ```go
-// do this before using google/uuid
-uuid.SetRand(guid.Reader)
-```
-* Quick conversions between `guid` and `google/uuid` if you need `uuid` behavior:
-```go
-g := guid.New()
-gpg := guid.NewPG()
-gss := guid.NewSS()
+package main
 
-var u uuid.UUID
+import (
+	"fmt"
 
-u = uuid.UUID(g) // copy by value
-fmt.Println(u)
+	"github.com/sdrapkin/guid"
+	"uuid"
+)
 
-u = uuid.UUID(gpg.Guid) // copy by value
-fmt.Println(u)
+func main() {
+	g := guid.New()
+	gpg := guid.NewPG()
+	gss := guid.NewSS()
 
-u = uuid.UUID(gss.Guid) // copy by value
-fmt.Println(u)
+	fmt.Println(g.UUID) // exposes as UUID
+	fmt.Println(gpg.UUID) // exposes as UUID
+	fmt.Println(gss.UUID) // exposes as UUID
 
-// Advanced: zero-copy cast for performance-sensitive code; use with care.
-uptr := (*uuid.UUID)(unsafe.Pointer(&g))
-g[0], g[1] = 0xAB, 0xCD
-fmt.Println(uptr)
+	g.UUID[0], g.UUID[1] = 0xAB, 0xCD
+	fmt.Println(g)
+}
 ```
 ```go
 05166521-a124-9d0c-cb11-7f0cbf3a030c
@@ -169,66 +180,25 @@ abcd6521-a124-9d0c-cb11-7f0cbf3a030c
 	* set `GODEBUG=fips140=on` environment variable
 	* https://go.dev/blog/fips140
 
-## uuid Benchmarks with and without `guid.Reader`
+## Recorded Benchmarks
 
-| Benchmark Name | Time per Op | Bytes per Op  | Allocs per Op  |
+These results were recorded on Windows amd64 with Go 1.27. They are reference measurements, not performance guarantees. Each `x10` benchmark performs ten calls per benchmark iteration.
+
+| Benchmark | Time per Op | Bytes per Op | Allocs per Op |
 |---|---|---|---|
-| Benchmark_uuid_New_x10-8                                   | 3031 ns/op  | 160 B/op      | 10 allocs/op   |
-| Benchmark_uuid_New_**guidRand**_x10-8 🔥                   | 862.0 ns/op | 160 B/op      | 10 allocs/op   |
-| Benchmark_uuid_New_RandPool_x10-8                          | 747.6 ns/op | 0 B/op        | 0 allocs/op    |
-| Benchmark_uuid_New_RandPool_**guidRand**_x10-8 🔥          | 516.8 ns/op | 0 B/op        | 0 allocs/op    |
-| Benchmark_uuid_New_Parallel_x10-8                          | 1230 ns/op  | 160 B/op      | 10 allocs/op   |
-| Benchmark_uuid_New_Parallel_**guidRand**_x10-8 🔥          | 510.0 ns/op | 160 B/op      | 10 allocs/op   |
-| Benchmark_uuid_New_Parallel_RandPool_x10-8                 | 1430 ns/op  | 0 B/op        | 0 allocs/op    |
-| Benchmark_uuid_New_Parallel_RandPool_**guidRand**_x10-8 🔥 | 1185 ns/op  | 0 B/op        | 0 allocs/op    |
+| `guid.New()` x10 | 255.6 ns/op | 0 B/op | 0 allocs/op |
+| `guid.NewString()` x10 | 686.3 ns/op | 240 B/op | 10 allocs/op |
+| `Guid.String()` x10 | 175.3 ns/op | 0 B/op | 0 allocs/op |
+| `guid.New()` x10 parallel | 91.27 ns/op | 0 B/op | 0 allocs/op |
+| `guid.NewString()` x10 parallel | 498.2 ns/op | 240 B/op | 10 allocs/op |
+| `guid.NewPG()` x10 | 366.1 ns/op | 0 B/op | 0 allocs/op |
+| `guid.NewSS()` x10 | 380.4 ns/op | 0 B/op | 0 allocs/op |
+| `uuid.New()` x10 | 1712 ns/op | 0 B/op | 0 allocs/op |
+| `uuid.NewV7()` x10 | 1819 ns/op | 0 B/op | 0 allocs/op |
+| `uuid.New()` x10 parallel | 748.7 ns/op | 0 B/op | 0 allocs/op |
+| `uuid.NewV7()` x10 parallel | 2818 ns/op | 0 B/op | 0 allocs/op |
 
-
-## Guid Benchmarks [[raw](BENCHMARKS.md)]
-```
-go test -bench=.* -benchtime=4s
-goos: windows
-goarch: amd64
-pkg: github.com/sdrapkin/guid
-cpu: Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz
-```
-| Benchmarks guid [10 calls] | Time/op | Bytes/op | Allocs/op |
-|---|---|---|---|
-| guid_New_x10-8                          |  203.4 ns/op  |   0 B/op |  0 allocs/op |
-| guid_NewString_x10-8                    |  582.4 ns/op  | 240 B/op | 10 allocs/op |
-| guid_String_x10-8                       |  388.9 ns/op  | 240 B/op | 10 allocs/op |
-| guid_New_Parallel_x10-8 🔥               |  62.45 ns/op  |   0 B/op |  0 allocs/op |
-| guid_NewString_Parallel_x10-8           |  374.2 ns/op  | 240 B/op | 10 allocs/op |
-
-## Sequential Guid Benchmarks
-| `guid.NewPG()` vs `uuid.NewV7()` [10 calls] | Time/op | |
-|---|---|---|
-| **guid.NewPG()_x10_Sequential** | **386.4 ns/op** |
-| uuid.NewV7()_x10_Sequential | 887.9 ns/op | 2.3x slower ⏳
-| **guid.NewPG()_x10_Parallel** | **144.3 ns/op** |
-| uuid.NewV7()_x10_Parallel | 2575 ns/op | 18x slower ⏳
-
-
-### Alternative library benchmarks:
-| Benchmarks nanoid v1.35 [10 calls] | Time/op | Bytes/op | Allocs/op |
-|---|---|---|---|
-| `guid.NewString()` x10 Sequential       | **609.9 ns/op**   | 240 B/op | 10 allocs/op |
-| `guid.NewString()` x10 Parallel (8 CPU) | **384.0 ns/op**   | 240 B/op | 10 allocs/op |
-| `nanoid.New()` x10 Sequential           | 2257 ns/op        | 240 B/op | 10 allocs/op |
-| `nanoid.New()` x10 Parallel (8 CPU)     | 1337 ns/op        | 240 B/op | 10 allocs/op |
-
-| Benchmarks uuid [10 calls] | Time/op | Bytes/op | Allocs/op |
-|---|---|---|---|
-| uuid_New_x10-8                          |  2216 ns/op   | 160 B/op | 10 allocs/op |
-| uuid_New_RandPool_x10-8                 |  528.2 ns/op  |   0 B/op |  0 allocs/op |
-| uuid_New_Parallel_x10-8                 |  1064 ns/op   | 160 B/op | 10 allocs/op |
-| uuid_New_RandPool_Parallel_x10-8        |  1301 ns/op   |   0 B/op |  0 allocs/op |
-
-| Benchmarks [20 guid encodings] | Time/op | Bytes/op | Allocs/op |
-|---|---|---|---|
-| g.String-8                |  1025 ns/op   | 480 B/op | 20 allocs/op |
-| base64.RawURLEncoding.EncodeToString-8  |  1867 ns/op   | 960 B/op | 40 allocs/op |
-| g.EncodeBase64URL-8                  |  392.0 ns/op  |   0 B/op |  0 allocs/op |
-| base64.RawURLEncoding.Encode-8          |  463.4 ns/op  |   0 B/op |  0 allocs/op |
+For historical reader and alternative-library measurements, see [BENCHMARKS.md](BENCHMARKS.md). Those results were collected from earlier code and environments and should not be compared directly with the current table.
 
 ## Documentation
  [![Go Reference](https://pkg.go.dev/badge/github.com/sdrapkin/guid.svg)](https://pkg.go.dev/github.com/sdrapkin/guid)
@@ -258,19 +228,35 @@ import "github.com/sdrapkin/guid"
 
 - Value fields serialize as 22-character Base64Url strings.
 - Pointer fields serialize as strings or `null` (for nil pointers).
-- Zero-value Guids (`guid.Nil`) are handled correctly.
+- Zero-value Guids (`guid.Nil()`) are handled correctly.
 
 ### Example: JSON Marshalling
 ```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/sdrapkin/guid"
+)
+
 type User struct {
 	ID        guid.Guid  `json:"id"`
 	ManagerID *guid.Guid `json:"mid"`
 }
 
-u, u2 := User{ID: guid.New()}, User{}
-data, _ := json.Marshal(u)
-fmt.Println(string(data)) // {"id":"tI0EMdDXpOcvvGLktob4Ug","mid":null}
+func main() {
+	u, u2 := User{ID: guid.New()}, User{}
+	data, err := json.Marshal(u)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(string(data)) // {"id":"tI0EMdDXpOcvvGLktob4Ug","mid":null}
 
-_ = json.Unmarshal(data, &u2)
-fmt.Println(u2.ID == u.ID) // true
+	if err := json.Unmarshal(data, &u2); err != nil {
+		panic(err)
+	}
+	fmt.Println(u2.ID == u.ID) // true
+}
 ```
