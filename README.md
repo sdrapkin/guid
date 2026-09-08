@@ -3,7 +3,7 @@
 
 `Guid` is a 16-byte struct filled with 128 cryptographically strong bits. Its bytes are available through `g.UUID[:]`.
 
-[Go playground](https://go.dev/play/p/8b7Xk6gzpHI)
+[Go playground](https://go.dev/play/p/XH-ie4gNrK-)
 ```go
 package main
 
