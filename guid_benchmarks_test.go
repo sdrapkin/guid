@@ -192,6 +192,8 @@ func Benchmark_guid_NewString_x10(b *testing.B) {
 	}
 }
 
+var benchmarkStringSink string
+
 func Benchmark_guid_String_x10(b *testing.B) {
 	guid01 := New()
 	guid02 := New()
@@ -206,16 +208,16 @@ func Benchmark_guid_String_x10(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		_ = guid01.String()
-		_ = guid02.String()
-		_ = guid03.String()
-		_ = guid04.String()
-		_ = guid05.String()
-		_ = guid06.String()
-		_ = guid07.String()
-		_ = guid08.String()
-		_ = guid09.String()
-		_ = guid10.String()
+		benchmarkStringSink = guid01.String()
+		benchmarkStringSink = guid02.String()
+		benchmarkStringSink = guid03.String()
+		benchmarkStringSink = guid04.String()
+		benchmarkStringSink = guid05.String()
+		benchmarkStringSink = guid06.String()
+		benchmarkStringSink = guid07.String()
+		benchmarkStringSink = guid08.String()
+		benchmarkStringSink = guid09.String()
+		benchmarkStringSink = guid10.String()
 	}
 }
 
@@ -315,16 +317,16 @@ func Benchmark_uuid_String_x10(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		_ = uuid01.String()
-		_ = uuid02.String()
-		_ = uuid03.String()
-		_ = uuid04.String()
-		_ = uuid05.String()
-		_ = uuid06.String()
-		_ = uuid07.String()
-		_ = uuid08.String()
-		_ = uuid09.String()
-		_ = uuid10.String()
+		benchmarkStringSink = uuid01.String()
+		benchmarkStringSink = uuid02.String()
+		benchmarkStringSink = uuid03.String()
+		benchmarkStringSink = uuid04.String()
+		benchmarkStringSink = uuid05.String()
+		benchmarkStringSink = uuid06.String()
+		benchmarkStringSink = uuid07.String()
+		benchmarkStringSink = uuid08.String()
+		benchmarkStringSink = uuid09.String()
+		benchmarkStringSink = uuid10.String()
 	}
 }
 
@@ -512,7 +514,7 @@ func Benchmark_guid_String_x20(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		for _, g := range benchGuids {
-			_ = g.String()
+			benchmarkStringSink = g.String()
 		}
 	}
 }
@@ -521,7 +523,7 @@ func Benchmark_base64_RawURLEncoding_EncodeToString_x20(b *testing.B) {
 	setupBenchGuids()
 	for b.Loop() {
 		for _, g := range benchGuids {
-			_ = base64.RawURLEncoding.EncodeToString(g.UUID[:])
+			benchmarkStringSink = base64.RawURLEncoding.EncodeToString(g.UUID[:])
 		}
 	}
 }
