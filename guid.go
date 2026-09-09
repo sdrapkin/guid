@@ -102,8 +102,8 @@ var _reader reader = reader{}
 
 // guidCache holds a 4096-byte buffer and a byte index for Guid allocation.
 type guidCache struct {
-	index  uint8
 	buffer [guidCacheByteSize]byte
+	index  uint8
 }
 
 //==============================================
@@ -200,7 +200,7 @@ func (guid Guid) String() string {
 	// buffer will be allocated on the heap, and will not be gc'ed until string is alive.
 	// This is the same approach that Golang uses in "strings.Clone()" [https://pkg.go.dev/strings#Clone],
 	// which calls internal "stringslite.Clone()":
-	// https://cs.opensource.google/go/go/+/refs/tags/go1.24.4:src/internal/stringslite/strings.go;l=143
+	// https://cs.opensource.google/go/go/+/refs/tags/go1.27.1:src/internal/stringslite/strings.go;l=115
 	/* stringslite.Clone():
 		func Clone(s string) string {
 		if len(s) == 0 {
@@ -423,16 +423,17 @@ func Max() Guid {
 func New() (g Guid) {
 	guidCacheRef := guidCachePool.Get().(*guidCache)
 
-	var index int = int(guidCacheRef.index)
+	index := guidCacheRef.index
 	if index == 0 {
 		cryptoRand.Read(guidCacheRef.buffer[:]) // Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
 	}
 
-	copy(g.UUID[:], guidCacheRef.buffer[index*GuidByteSize:]) // Extract GUID at current index
+	offset := int(index) * GuidByteSize
+	g.UUID = *(*uuid.UUID)(guidCacheRef.buffer[offset : offset+GuidByteSize]) // Extract GUID at current index
 
-	guidCacheRef.index = uint8(index + 1) // Increment index for next call, uint8 wraps from 255 to 0 automatically
+	guidCacheRef.index = index + 1 // Increment index for next call, uint8 wraps from 255 to 0 automatically
 	guidCachePool.Put(guidCacheRef)
-	return
+	return g
 }
 
 // NewPG generates a new PostgreSQL sortable Guid as [8-byte time.Now() timestamp][8 random bytes]
