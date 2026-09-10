@@ -16,85 +16,93 @@ import (
 //*******************
 // Benchmarks:
 // set GOAMD64=v3
-// go test -bench=".*" -benchmem -benchtime=4s
+// go test -bench="(.*)" -benchmem -benchtime=4s
 //*******************
 
-/**************************************************************************** [2026-06-05 15:30:00] Benchmark results, Go 1.27)
-C:\Code\Go\guid>go test -run="^$" -bench=(.*) -benchmem -benchtime=4s
+/**************************************************************************** [2026-09-10] Benchmark results, Go 1.27.1)
+C:\Code\Go\guid>go test -bench="(.*)" -benchmem -benchtime=4s
 goos: windows
 goarch: amd64
 pkg: github.com/sdrapkin/guid
 cpu: Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz
-Benchmark_guid_New_x10-8                                15831030               255.6 ns/op             0 B/op          0 allocs/op
-Benchmark_guid_CryptoRandRead_x10-8                      2381785              1803 ns/op               0 B/op          0 allocs/op
-Benchmark_guid_NewPG_x10-8                              12887008               366.1 ns/op             0 B/op          0 allocs/op
-Benchmark_guid_NewSS_x10-8                              12970501               380.4 ns/op             0 B/op          0 allocs/op
-Benchmark_guid_New_Parallel_x10-8                       79680348                91.27 ns/op            0 B/op          0 allocs/op
-Benchmark_guid_NewString_x10-8                           6830061               686.3 ns/op           240 B/op         10 allocs/op
-Benchmark_guid_String_x10-8                             26392231               175.3 ns/op             0 B/op          0 allocs/op
-Benchmark_guid_NewString_Parallel_x10-8                 14398298               498.2 ns/op           240 B/op         10 allocs/op
-Benchmark_uuid_New_x10-8                                 2640710              1712 ns/op               0 B/op          0 allocs/op
-Benchmark_uuid_NewV7_x10-8                               2735016              1819 ns/op               0 B/op          0 allocs/op
-Benchmark_uuid_String_x10-8                              6845982               721.1 ns/op           480 B/op         10 allocs/op
-Benchmark_uuid_New_Parallel_x10-8                        7924022               748.7 ns/op             0 B/op          0 allocs/op
-Benchmark_uuid_NewV7_Parallel_x10-8                      1571799              2818 ns/op               0 B/op          0 allocs/op
-Benchmark_guid_NewPG_Parallel_x10-8                     42497318               133.9 ns/op             0 B/op          0 allocs/op
-Benchmark_guid_String_x20-8                             11149111               413.8 ns/op             0 B/op          0 allocs/op
-Benchmark_base64_RawURLEncoding_EncodeToString_x20-8     4709122              1089 ns/op             480 B/op         20 allocs/op
-Benchmark_guid_EncodeBase64URL_x20-8                    11887330               391.7 ns/op             0 B/op          0 allocs/op
-Benchmark_base64_RawURLEncoding_Encode_x20-8            11819721               397.3 ns/op             0 B/op          0 allocs/op
-Benchmark_Concurrent_CachePool_GetPut/G1-8              1000000000               6.449 ns/op           0 B/op          0 allocs/op
-Benchmark_Concurrent_CachePool_GetPut/G2-8              704719772                6.283 ns/op           0 B/op          0 allocs/op
-Benchmark_Concurrent_CachePool_GetPut/G4-8              791839826                6.187 ns/op           0 B/op          0 allocs/op
-Benchmark_Concurrent_CachePool_GetPut/G8-8              822088278                6.085 ns/op           0 B/op          0 allocs/op
-Benchmark_Concurrent_CachePool_GetPut/G16-8             816457746                5.975 ns/op           0 B/op          0 allocs/op
-Benchmark_Concurrent_CachePool_GetPut/G32-8             821981848                6.336 ns/op           0 B/op          0 allocs/op
-Benchmark_Concurrent_CachePool_GetPut/G64-8             784138318                6.039 ns/op           0 B/op          0 allocs/op
+Benchmark_guid_New_x10-8                                21336547               240.1 ns/op             0 B/op          0 allocs/op
+Benchmark_CryptoRand_Read_16bytes_x10-8                  2873866              1657 ns/op               0 B/op          0 allocs/op
+Benchmark_guid_ReaderRead_16bytes_x10-8                 16466930               312.0 ns/op             0 B/op          0 allocs/op
+Benchmark_guid_NewPG_x10-8                              12806184               475.9 ns/op             0 B/op          0 allocs/op
+Benchmark_guid_NewSS_x10-8                              10761759               437.9 ns/op             0 B/op          0 allocs/op
+Benchmark_guid_New_Parallel_x10-8                       78815274                93.94 ns/op            0 B/op          0 allocs/op
+Benchmark_guid_NewString_x10-8                           6844672               676.5 ns/op           240 B/op         10 allocs/op
+Benchmark_guid_String_x10-8                             12206503               453.0 ns/op           240 B/op         10 allocs/op
+Benchmark_guid_NewString_Parallel_x10-8                 12761317               488.8 ns/op           240 B/op         10 allocs/op
+Benchmark_uuid_New_x10-8                                 2559798              1754 ns/op               0 B/op          0 allocs/op
+Benchmark_uuid_NewV7_x10-8                               2645582              1809 ns/op               0 B/op          0 allocs/op
+Benchmark_uuid_String_x10-8                              5684502              1039 ns/op             480 B/op         10 allocs/op
+Benchmark_uuid_New_Parallel_x10-8                        8335995               745.2 ns/op             0 B/op          0 allocs/op
+Benchmark_uuid_NewV7_Parallel_x10-8                      1625245              2813 ns/op               0 B/op          0 allocs/op
+Benchmark_guid_NewPG_Parallel_x10-8                     44275540               139.3 ns/op             0 B/op          0 allocs/op
+Benchmark_guid_String_x20-8                              3648266              1106 ns/op             480 B/op         20 allocs/op
+Benchmark_base64_RawURLEncoding_EncodeToString_x20-8     3554299              1351 ns/op             480 B/op         20 allocs/op
+Benchmark_guid_EncodeBase64URL_x20-8                    14391660               317.9 ns/op             0 B/op          0 allocs/op
+Benchmark_base64_RawURLEncoding_Encode_x20-8            12024792               404.0 ns/op             0 B/op          0 allocs/op
+Benchmark_Concurrent_CachePool_GetPut_x10/G1-8          100000000               56.90 ns/op            0 B/op          0 allocs/op
+Benchmark_Concurrent_CachePool_GetPut_x10/G2-8          83234491                58.67 ns/op            0 B/op          0 allocs/op
+Benchmark_Concurrent_CachePool_GetPut_x10/G4-8          82155907                58.77 ns/op            0 B/op          0 allocs/op
+Benchmark_Concurrent_CachePool_GetPut_x10/G8-8          80082484                59.83 ns/op            0 B/op          0 allocs/op
+Benchmark_Concurrent_CachePool_GetPut_x10/G16-8         84330216                62.38 ns/op            0 B/op          0 allocs/op
+Benchmark_Concurrent_CachePool_GetPut_x10/G32-8         72608018                58.81 ns/op            0 B/op          0 allocs/op
+Benchmark_Concurrent_CachePool_GetPut_x10/G64-8         80136230                57.19 ns/op            0 B/op          0 allocs/op
+Benchmark_Concurrent_guid_New_x10/G1-8                  53833807                92.60 ns/op            0 B/op          0 allocs/op
+Benchmark_Concurrent_guid_New_x10/G2-8                  49439683                93.53 ns/op            0 B/op          0 allocs/op
+Benchmark_Concurrent_guid_New_x10/G4-8                  48047566                97.38 ns/op            0 B/op          0 allocs/op
+Benchmark_Concurrent_guid_New_x10/G8-8                  49252844                98.78 ns/op            0 B/op          0 allocs/op
+Benchmark_Concurrent_guid_New_x10/G16-8                 50590965                96.33 ns/op            0 B/op          0 allocs/op
+Benchmark_Concurrent_guid_New_x10/G32-8                 50578330                93.44 ns/op            0 B/op          0 allocs/op
+Benchmark_Concurrent_guid_New_x10/G64-8                 50203952                93.66 ns/op            0 B/op          0 allocs/op
 =================================
-BenchmarkReadPerf/______Guid_Read([0]byte)-8            1000000000               3.254 ns/op           0 B/op          0 allocs/op
-BenchmarkReadPerf/cryptoRand_Read([0]byte)-8            48090409                97.71 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/______Guid_Read([0]byte)-8            1000000000               2.790 ns/op           0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([0]byte)-8            46757557                99.08 ns/op            0 B/op          0 allocs/op
 =================================
-BenchmarkReadPerf/______Guid_Read([1]byte)-8            179076219               27.72 ns/op            0 B/op          0 allocs/op
-BenchmarkReadPerf/cryptoRand_Read([1]byte)-8            34390605               134.7 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/______Guid_Read([1]byte)-8            241170993               19.97 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([1]byte)-8            33365262               136.4 ns/op             0 B/op          0 allocs/op
 =================================
-BenchmarkReadPerf/______Guid_Read([2]byte)-8            171541156               27.64 ns/op            0 B/op          0 allocs/op
-BenchmarkReadPerf/cryptoRand_Read([2]byte)-8            33717998               137.1 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/______Guid_Read([2]byte)-8            229572110               20.83 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([2]byte)-8            32955669               138.6 ns/op             0 B/op          0 allocs/op
 =================================
-BenchmarkReadPerf/______Guid_Read([4]byte)-8            179178990               26.76 ns/op            0 B/op          0 allocs/op
-BenchmarkReadPerf/cryptoRand_Read([4]byte)-8            33791941               147.7 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/______Guid_Read([4]byte)-8            228470313               22.12 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([4]byte)-8            32869620               144.4 ns/op             0 B/op          0 allocs/op
 =================================
-BenchmarkReadPerf/______Guid_Read([8]byte)-8            178643091               26.81 ns/op            0 B/op          0 allocs/op
-BenchmarkReadPerf/cryptoRand_Read([8]byte)-8            31093741               147.6 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/______Guid_Read([8]byte)-8            196320543               25.02 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([8]byte)-8            31621969               148.8 ns/op             0 B/op          0 allocs/op
 =================================
-BenchmarkReadPerf/______Guid_Read([16]byte)-8           174099001               29.49 ns/op            0 B/op          0 allocs/op
-BenchmarkReadPerf/cryptoRand_Read([16]byte)-8           29316646               165.2 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/______Guid_Read([16]byte)-8           173828503               27.51 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([16]byte)-8           28943839               161.3 ns/op             0 B/op          0 allocs/op
 =================================
-BenchmarkReadPerf/______Guid_Read([32]byte)-8           137474346               34.82 ns/op            0 B/op          0 allocs/op
-BenchmarkReadPerf/cryptoRand_Read([32]byte)-8           25599958               193.0 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/______Guid_Read([32]byte)-8           138578865               34.67 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([32]byte)-8           25286101               190.7 ns/op             0 B/op          0 allocs/op
 =================================
-BenchmarkReadPerf/______Guid_Read([64]byte)-8           90277999                49.72 ns/op            0 B/op          0 allocs/op
-BenchmarkReadPerf/cryptoRand_Read([64]byte)-8           19892316               247.9 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/______Guid_Read([64]byte)-8           97037328                51.55 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([64]byte)-8           18749991               250.9 ns/op             0 B/op          0 allocs/op
 =================================
-BenchmarkReadPerf/______Guid_Read([128]byte)-8          58561222                81.73 ns/op            0 B/op          0 allocs/op
-BenchmarkReadPerf/cryptoRand_Read([128]byte)-8          14416617               335.1 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/______Guid_Read([128]byte)-8          59343585                79.35 ns/op            0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([128]byte)-8          14221682               336.5 ns/op             0 B/op          0 allocs/op
 =================================
-BenchmarkReadPerf/______Guid_Read([256]byte)-8          34431975               142.3 ns/op             0 B/op          0 allocs/op
-BenchmarkReadPerf/cryptoRand_Read([256]byte)-8          12669002               373.4 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/______Guid_Read([256]byte)-8          32219868               142.4 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([256]byte)-8          12600915               385.9 ns/op             0 B/op          0 allocs/op
 =================================
-BenchmarkReadPerf/______Guid_Read([512]byte)-8          19075534               260.1 ns/op             0 B/op          0 allocs/op
-BenchmarkReadPerf/cryptoRand_Read([512]byte)-8          10279756               463.7 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/______Guid_Read([512]byte)-8          17206329               422.1 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([512]byte)-8           3328891              1253 ns/op               0 B/op          0 allocs/op
 =================================
-BenchmarkReadPerf/______Guid_Read([513]byte)-8           7993334               526.2 ns/op             0 B/op          0 allocs/op
-BenchmarkReadPerf/cryptoRand_Read([513]byte)-8           8422176               553.9 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/______Guid_Read([513]byte)-8           4639192              1010 ns/op               0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([513]byte)-8           4708387               941.2 ns/op             0 B/op          0 allocs/op
 =================================
-BenchmarkReadPerf/______Guid_Read([1024]byte)-8          7454049               639.8 ns/op             0 B/op          0 allocs/op
-BenchmarkReadPerf/cryptoRand_Read([1024]byte)-8          7387695               654.8 ns/op             0 B/op          0 allocs/op
+BenchmarkReadPerf/______Guid_Read([1024]byte)-8          4345500              1134 ns/op               0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([1024]byte)-8          3851770              1126 ns/op               0 B/op          0 allocs/op
 =================================
-BenchmarkReadPerf/______Guid_Read([2048]byte)-8          4842636               990.5 ns/op             0 B/op          0 allocs/op
-BenchmarkReadPerf/cryptoRand_Read([2048]byte)-8          4836138              1035 ns/op               0 B/op          0 allocs/op
+BenchmarkReadPerf/______Guid_Read([2048]byte)-8          3065995              1545 ns/op               0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([2048]byte)-8          3105973              1478 ns/op               0 B/op          0 allocs/op
 =================================
-BenchmarkReadPerf/______Guid_Read([4096]byte)-8          2802358              1985 ns/op               0 B/op          0 allocs/op
-BenchmarkReadPerf/cryptoRand_Read([4096]byte)-8          2844350              1770 ns/op               0 B/op          0 allocs/op
+BenchmarkReadPerf/______Guid_Read([4096]byte)-8          1997857              2424 ns/op               0 B/op          0 allocs/op
+BenchmarkReadPerf/cryptoRand_Read([4096]byte)-8          1992097              2419 ns/op               0 B/op          0 allocs/op
 =================================
 ****************************************************************************/
 
@@ -106,6 +114,7 @@ func Benchmark_guid_New_x10(b *testing.B) {
 		_ = New()
 		_ = New()
 		_ = New()
+
 		_ = New()
 		_ = New()
 		_ = New()
@@ -114,19 +123,39 @@ func Benchmark_guid_New_x10(b *testing.B) {
 	}
 }
 
-func Benchmark_guid_CryptoRandRead_x10(b *testing.B) {
+func Benchmark_CryptoRand_Read_16bytes_x10(b *testing.B) {
 	var g Guid
+	gSlice := g.UUID[:]
 	for b.Loop() {
-		cryptoRand.Read(g.UUID[:])
-		cryptoRand.Read(g.UUID[:])
-		cryptoRand.Read(g.UUID[:])
-		cryptoRand.Read(g.UUID[:])
-		cryptoRand.Read(g.UUID[:])
-		cryptoRand.Read(g.UUID[:])
-		cryptoRand.Read(g.UUID[:])
-		cryptoRand.Read(g.UUID[:])
-		cryptoRand.Read(g.UUID[:])
-		cryptoRand.Read(g.UUID[:])
+		cryptoRand.Read(gSlice)
+		cryptoRand.Read(gSlice)
+		cryptoRand.Read(gSlice)
+		cryptoRand.Read(gSlice)
+		cryptoRand.Read(gSlice)
+
+		cryptoRand.Read(gSlice)
+		cryptoRand.Read(gSlice)
+		cryptoRand.Read(gSlice)
+		cryptoRand.Read(gSlice)
+		cryptoRand.Read(gSlice)
+	}
+}
+
+func Benchmark_guid_ReaderRead_16bytes_x10(b *testing.B) {
+	var g Guid
+	gSlice := g.UUID[:]
+	for b.Loop() {
+		Reader.Read(gSlice)
+		Reader.Read(gSlice)
+		Reader.Read(gSlice)
+		Reader.Read(gSlice)
+		Reader.Read(gSlice)
+
+		Reader.Read(gSlice)
+		Reader.Read(gSlice)
+		Reader.Read(gSlice)
+		Reader.Read(gSlice)
+		Reader.Read(gSlice)
 	}
 }
 
@@ -137,6 +166,7 @@ func Benchmark_guid_NewPG_x10(b *testing.B) {
 		_ = NewPG()
 		_ = NewPG()
 		_ = NewPG()
+
 		_ = NewPG()
 		_ = NewPG()
 		_ = NewPG()
@@ -152,6 +182,7 @@ func Benchmark_guid_NewSS_x10(b *testing.B) {
 		_ = NewSS()
 		_ = NewSS()
 		_ = NewSS()
+
 		_ = NewSS()
 		_ = NewSS()
 		_ = NewSS()
@@ -168,6 +199,7 @@ func Benchmark_guid_New_Parallel_x10(b *testing.B) {
 			_ = New()
 			_ = New()
 			_ = New()
+
 			_ = New()
 			_ = New()
 			_ = New()
@@ -184,6 +216,7 @@ func Benchmark_guid_NewString_x10(b *testing.B) {
 		_ = NewString()
 		_ = NewString()
 		_ = NewString()
+
 		_ = NewString()
 		_ = NewString()
 		_ = NewString()
@@ -200,6 +233,7 @@ func Benchmark_guid_String_x10(b *testing.B) {
 	guid03 := New()
 	guid04 := New()
 	guid05 := New()
+
 	guid06 := New()
 	guid07 := New()
 	guid08 := New()
@@ -213,6 +247,7 @@ func Benchmark_guid_String_x10(b *testing.B) {
 		benchmarkStringSink = guid03.String()
 		benchmarkStringSink = guid04.String()
 		benchmarkStringSink = guid05.String()
+
 		benchmarkStringSink = guid06.String()
 		benchmarkStringSink = guid07.String()
 		benchmarkStringSink = guid08.String()
@@ -229,6 +264,7 @@ func Benchmark_guid_NewString_Parallel_x10(b *testing.B) {
 			_ = NewString()
 			_ = NewString()
 			_ = NewString()
+
 			_ = NewString()
 			_ = NewString()
 			_ = NewString()
@@ -280,6 +316,7 @@ func Benchmark_uuid_New_x10(b *testing.B) {
 		_ = uuid.New()
 		_ = uuid.New()
 		_ = uuid.New()
+
 		_ = uuid.New()
 		_ = uuid.New()
 		_ = uuid.New()
@@ -295,6 +332,7 @@ func Benchmark_uuid_NewV7_x10(b *testing.B) {
 		_ = uuid.NewV7()
 		_ = uuid.NewV7()
 		_ = uuid.NewV7()
+
 		_ = uuid.NewV7()
 		_ = uuid.NewV7()
 		_ = uuid.NewV7()
@@ -309,6 +347,7 @@ func Benchmark_uuid_String_x10(b *testing.B) {
 	uuid03 := uuid.New()
 	uuid04 := uuid.New()
 	uuid05 := uuid.New()
+
 	uuid06 := uuid.New()
 	uuid07 := uuid.New()
 	uuid08 := uuid.New()
@@ -322,6 +361,7 @@ func Benchmark_uuid_String_x10(b *testing.B) {
 		benchmarkStringSink = uuid03.String()
 		benchmarkStringSink = uuid04.String()
 		benchmarkStringSink = uuid05.String()
+
 		benchmarkStringSink = uuid06.String()
 		benchmarkStringSink = uuid07.String()
 		benchmarkStringSink = uuid08.String()
@@ -338,6 +378,7 @@ func Benchmark_uuid_New_Parallel_x10(b *testing.B) {
 			_ = uuid.New()
 			_ = uuid.New()
 			_ = uuid.New()
+
 			_ = uuid.New()
 			_ = uuid.New()
 			_ = uuid.New()
@@ -355,6 +396,7 @@ func Benchmark_uuid_NewV7_Parallel_x10(b *testing.B) {
 			_ = uuid.NewV7()
 			_ = uuid.NewV7()
 			_ = uuid.NewV7()
+
 			_ = uuid.NewV7()
 			_ = uuid.NewV7()
 			_ = uuid.NewV7()
@@ -482,6 +524,7 @@ func Benchmark_guid_NewPG_Parallel_x10(b *testing.B) {
 			_ = NewPG()
 			_ = NewPG()
 			_ = NewPG()
+
 			_ = NewPG()
 			_ = NewPG()
 			_ = NewPG()
@@ -554,7 +597,7 @@ func _CachePool_GetPut() {
 	guidCachePool.Put(guidCacheRef)
 }
 
-func Benchmark_Concurrent_CachePool_GetPut(b *testing.B) {
+func Benchmark_Concurrent_CachePool_GetPut_x10(b *testing.B) {
 	b.ReportAllocs()
 	goroutineCounts := []int{1, 2, 4, 8, 16, 32, 64}
 	for _, count := range goroutineCounts {
@@ -565,6 +608,43 @@ func Benchmark_Concurrent_CachePool_GetPut(b *testing.B) {
 			b.RunParallel(func(pb *testing.PB) {
 				for pb.Next() {
 					_CachePool_GetPut()
+					_CachePool_GetPut()
+					_CachePool_GetPut()
+					_CachePool_GetPut()
+					_CachePool_GetPut()
+
+					_CachePool_GetPut()
+					_CachePool_GetPut()
+					_CachePool_GetPut()
+					_CachePool_GetPut()
+					_CachePool_GetPut()
+				}
+			})
+		})
+	}
+}
+
+func Benchmark_Concurrent_guid_New_x10(b *testing.B) {
+	b.ReportAllocs()
+	goroutineCounts := []int{1, 2, 4, 8, 16, 32, 64}
+	for _, count := range goroutineCounts {
+		benchName := fmt.Sprintf("G%d", count)
+		b.Run(benchName, func(b *testing.B) {
+			b.SetParallelism(count)
+			b.ResetTimer()
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					New()
+					New()
+					New()
+					New()
+					New()
+
+					New()
+					New()
+					New()
+					New()
+					New()
 				}
 			})
 		})

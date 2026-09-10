@@ -25,8 +25,8 @@ import (
 
 const (
 	GuidByteSize          = 16                           // Size of a Guid in bytes
-	guidsPerCache         = 256                          // 256 Guids per cache - do not change this value
-	guidCacheByteSize     = GuidByteSize * guidsPerCache // 4096 bytes per cache (256*16)
+	guidsPerCache         = 256 - 1                      // 256-1 Guids per cache to stay under 4096 bytes - do not change this value
+	guidCacheByteSize     = GuidByteSize * guidsPerCache // 4096-16=4080 bytes per cache (16*255)
 	GuidBase64UrlByteSize = 22                           // Base64Url encoding of a Guid is 22 characters
 )
 
@@ -35,8 +35,8 @@ const (
 )
 
 // Ensure that the constants are not changed without thought.
-var _ = map[bool]int{false: 0, guidsPerCache == 256: 1}
-var _ = map[bool]int{false: 0, guidCacheByteSize == 4096: 1}
+var _ = map[bool]int{false: 0, guidsPerCache == 255: 1}
+var _ = map[bool]int{false: 0, guidCacheByteSize == 4080: 1}
 
 //==============================================
 // Errors and Variables
@@ -103,7 +103,7 @@ var _reader reader = reader{}
 // guidCache holds a 4096-byte buffer and a byte index for Guid allocation.
 type guidCache struct {
 	buffer [guidCacheByteSize]byte
-	index  uint8
+	offset int
 }
 
 //==============================================
@@ -229,33 +229,49 @@ func (guid Guid) EncodeBase64URL(dst []byte) error {
 	return nil
 }
 
+// Helper closure to pack 4 characters into one 32-bit integer (Little-Endian)
+//
+//go:inline
+func encode4(val uint32) uint32 {
+	c0 := uint32(base64UrlAlphabet[val>>18])
+	c1 := uint32(base64UrlAlphabet[val>>12&0x3F])
+	c2 := uint32(base64UrlAlphabet[val>>6&0x3F])
+	c3 := uint32(base64UrlAlphabet[val&0x3F])
+	return c0 | (c1 << 8) | (c2 << 16) | (c3 << 24)
+}
+
 // private - panics on undersized buffer or nil guid
 func (guid *Guid) encodeBase64URL(dst []byte) {
-	const lengthMod3 = 1                    // 16 % 3 = 1
-	const limit = GuidByteSize - lengthMod3 // 15 bytes can be processed in groups of 3 bytes, leaving 1 byte at the end.
+	// Bounds Check Elimination (BCE) for the entire output slice
+	_ = dst[21]
+	u := guid.UUID[:]
+	b15 := u[15]
 
-	// Bounds Check Elimination
-	_ = guid.UUID[GuidByteSize-1]
-	_ = dst[GuidBase64UrlByteSize-1]
+	// Unroll 5 iterations: Load 4 bytes at once, shift right by 8 to get 3-byte payload
 
-	j := 0 // Index in the output buffer
+	// Offset 0
+	v := binary.BigEndian.Uint32(u[0:4]) >> 8
+	*(*uint32)(unsafe.Pointer(&dst[0])) = encode4(v)
 
-	// Process the first 15 bytes (5 groups of 3 bytes). Each 3-byte group is converted to 4 Base64Url characters.
-	for i := 0; i < limit; i += 3 {
-		val := uint32(guid.UUID[i])<<16 | uint32(guid.UUID[i+1])<<8 | uint32(guid.UUID[i+2])
+	// Offset 3
+	v = binary.BigEndian.Uint32(u[3:7]) >> 8
+	*(*uint32)(unsafe.Pointer(&dst[4])) = encode4(v)
 
-		// Combine 3 bytes into a 24-bit integer and extract 4 6-bit indices.
-		dst[j] = base64UrlAlphabet[val>>18&0x3F]
-		dst[j+1] = base64UrlAlphabet[val>>12&0x3F]
-		dst[j+2] = base64UrlAlphabet[val>>6&0x3F]
-		dst[j+3] = base64UrlAlphabet[val&0x3F]
-		j += 4
-	}
+	// Offset 6
+	v = binary.BigEndian.Uint32(u[6:10]) >> 8
+	*(*uint32)(unsafe.Pointer(&dst[8])) = encode4(v)
 
-	// Handle the last byte, converted to 2 Base64Url characters.
-	b0 := guid.UUID[limit]
-	dst[j] = base64UrlAlphabet[b0>>2]
-	dst[j+1] = base64UrlAlphabet[(b0&0x03)<<4]
+	// Offset 9
+	v = binary.BigEndian.Uint32(u[9:13]) >> 8
+	*(*uint32)(unsafe.Pointer(&dst[12])) = encode4(v)
+
+	// Offset 12 (bytes 12, 13, 14, 15 - slice upper bound 16 is safe)
+	v = binary.BigEndian.Uint32(u[12:16]) >> 8
+	*(*uint32)(unsafe.Pointer(&dst[16])) = encode4(v)
+
+	// Final 16th byte (byte 15) -> 2 output characters (dst[20] and dst[21])
+	dst[20] = base64UrlAlphabet[b15>>2]
+	dst[21] = base64UrlAlphabet[(b15&0x03)<<4]
 }
 
 //==============================================
@@ -280,18 +296,16 @@ func (r reader) Read(b []byte) (int, error) {
 
 	guidCacheRef := guidCachePool.Get().(*guidCache)
 
-	if n > (guidCacheByteSize - int(guidCacheRef.index)*GuidByteSize) {
-		cryptoRand.Read(guidCacheRef.buffer[:]) // Not enough bytes remaining: refill completely. Go 1.24+ guarantees crypto/rand.Read succeeds.
-		guidCacheRef.index = 0
-	} else if guidCacheRef.index == 0 {
-		cryptoRand.Read(guidCacheRef.buffer[:]) // Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
+	offset := guidCacheRef.offset
+
+	// Refills buffer if requested bytes exceed remaining capacity, or if pool object is brand new with max-offset
+	if offset+n > guidCacheByteSize {
+		cryptoRand.Read(guidCacheRef.buffer[:])
+		offset = 0
 	}
 
-	copy(b, guidCacheRef.buffer[int(guidCacheRef.index)*GuidByteSize:])
-
-	// Update the index based on the number of Guids consumed.
-	// The ceiling division ensures the index increments correctly for partial Guid consumption.
-	guidCacheRef.index += byte((n + GuidByteSize - 1) / GuidByteSize)
+	copy(b, guidCacheRef.buffer[offset:offset+n])
+	guidCacheRef.offset = offset + n
 
 	guidCachePool.Put(guidCacheRef)
 	return n, nil
@@ -309,7 +323,7 @@ func (g GuidPG) Timestamp() time.Time {
 	return time.Unix(0, timestamp).UTC()
 }
 
-// GuidSS.Compare compares the PostgreSQL Guid with another PostgreSQL Guid using big-endian byte order.
+// GuidPG.Compare compares the PostgreSQL Guid with another PostgreSQL Guid using big-endian byte order.
 // Returns -1 if g < other, 0 if g == other, and 1 if g > other.
 func (g GuidPG) Compare(other GuidPG) int {
 	return g.Guid.Compare(other.Guid)
@@ -423,15 +437,15 @@ func Max() Guid {
 func New() (g Guid) {
 	guidCacheRef := guidCachePool.Get().(*guidCache)
 
-	index := guidCacheRef.index
-	if index == 0 {
-		cryptoRand.Read(guidCacheRef.buffer[:]) // Refill buffer if index wraps (Go 1.24+: cryptoRand.Read is guaranteed to succeed)
+	offset := guidCacheRef.offset
+
+	if offset > guidCacheByteSize-GuidByteSize {
+		cryptoRand.Read(guidCacheRef.buffer[:])
+		offset = 0
 	}
 
-	offset := int(index) * GuidByteSize
-	g.UUID = *(*uuid.UUID)(guidCacheRef.buffer[offset : offset+GuidByteSize]) // Extract GUID at current index
-
-	guidCacheRef.index = index + 1 // Increment index for next call, uint8 wraps from 255 to 0 automatically
+	g.UUID = *(*[16]byte)(unsafe.Pointer(&guidCacheRef.buffer[offset]))
+	guidCacheRef.offset = offset + GuidByteSize
 	guidCachePool.Put(guidCacheRef)
 	return g
 }
@@ -583,7 +597,7 @@ func Read(b []byte) (n int, err error) {
 // guidCachePool is a sync.Pool that holds guidCache instances.
 var guidCachePool = sync.Pool{
 	New: func() any {
-		return &guidCache{}
+		return &guidCache{offset: guidCacheByteSize} // Start with offset at the end to trigger a refill on first use
 	},
 }
 

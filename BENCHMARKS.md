@@ -233,3 +233,9 @@ Benchmark_Readers_GuidLite_____Concurrent/Size_2048_G64-8        1726142        
 Benchmark_Readers_GuidLite_____Concurrent/Size_4096_G64-8         762068              1450 ns/op        2825.14 MB/s
 ```
 </details>
+
+<details><summary>[2026-09-10]</summary>
+
+```
+...TODO...
+```
