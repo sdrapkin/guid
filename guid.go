@@ -594,10 +594,20 @@ func Read(b []byte) (n int, err error) {
 // Internal Variables
 //==============================================
 
+// https://go.dev/src/runtime/malloc.go
+//
+//go:linkname mallocgc runtime.mallocgc
+func mallocgc(size uintptr, typ unsafe.Pointer, needzero bool) unsafe.Pointer
+
 // guidCachePool is a sync.Pool that holds guidCache instances.
 var guidCachePool = sync.Pool{
 	New: func() any {
-		return &guidCache{offset: guidCacheByteSize} // Start with offset at the end to trigger a refill on first use
+		// Allocate exact size without zeroing memory
+		const guidCacheStructSize = unsafe.Sizeof(guidCache{})
+		ptr := mallocgc(guidCacheStructSize, nil, false)
+		cacheRef := (*guidCache)(ptr)
+		cacheRef.offset = guidCacheByteSize // Start with offset at the end to trigger a refill on first use
+		return cacheRef
 	},
 }
 

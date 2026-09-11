@@ -19,7 +19,7 @@ import (
 // Helpful commands:
 //
 // go test -v -coverprofile="coverage.txt"
-// go tool cover -func=coverage.txt
+// go tool cover -func="coverage.txt"
 // go tool cover -html="coverage.txt"
 // gocyclo -over 15 .
 // go test -bench=".*" -benchmem -benchtime=4s
@@ -1054,6 +1054,25 @@ func TestGuidSS_Compare(t *testing.T) {
 				t.Errorf("reverse Compare() = %d, want 1", got)
 			}
 		})
+	}
+}
+
+func TestGuidSS_LoadFromSQLServerBytes(t *testing.T) {
+	var g GuidSS
+	src := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	expected := [16]byte{3, 2, 1, 0, 5, 4, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15}
+
+	if err := g.LoadFromSQLServerBytes(src); err != nil {
+		t.Fatalf("LoadFromSQLServerBytes() unexpected error: %v", err)
+	}
+	if g.UUID != expected {
+		t.Errorf("LoadFromSQLServerBytes() = %v, want %v", g.UUID, expected)
+	}
+
+	for _, src := range [][]byte{nil, {}, make([]byte, GuidByteSize-1), make([]byte, GuidByteSize+1)} {
+		if err := g.LoadFromSQLServerBytes(src); err != ErrInvalidGuidSlice {
+			t.Errorf("LoadFromSQLServerBytes(%d bytes) error = %v, want %v", len(src), err, ErrInvalidGuidSlice)
+		}
 	}
 }
 
