@@ -1,9 +1,9 @@
-# guid [![name](https://goreportcard.com/badge/github.com/sdrapkin/guid)](https://goreportcard.com/report/github.com/sdrapkin/guid) [![codecov](https://codecov.io/github/sdrapkin/guid/branch/master/graph/badge.svg?token=ARQFUQD5VP)](https://codecov.io/github/sdrapkin/guid) [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#uuid) 
+# guid [![codecov](https://codecov.io/github/sdrapkin/guid/branch/master/graph/badge.svg?token=ARQFUQD5VP)](https://codecov.io/github/sdrapkin/guid) [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go#uuid) 
 ## Fast cryptographically secure Guid generator for Go.<br>By [Stan Drapkin](https://github.com/sdrapkin/).
 
 `Guid` is a 16-byte struct filled with 128 cryptographically strong bits. Its bytes are available through `g.UUID[:]`.
 
-[Go playground](https://go.dev/play/p/XH-ie4gNrK-)
+[Go playground](https://go.dev/play/p/H8xdCVR4EAw)
 ```go
 package main
 
@@ -14,20 +14,20 @@ import (
 )
 
 func main() {
-	fmt.Printf("%-32s %s\n", "Hex:", ".String()")
+	fmt.Printf("%-36s %-32s %s\n", "UUID string:", "Hex:", ".String():")
 	for range 4 {
 		g := guid.New()
-		fmt.Printf("%x %v\n", g.UUID[:], g)
+		fmt.Printf("%s %x %s\n", g.UUID, g.UUID[:], g)
 	}
 }
 ```
 
 ```
-Hex:                             .String()
-0423137e347d73a9aae78c375972f8da BCMTfjR9c6mq54w3WXL42g
-97b755a7b8e5557d7124d6e744cec3b4 l7dVp7jlVX1xJNbnRM7DtA
-12f76b671fb3d77ca9ecbf24bc3a9056 EvdrZx-z13yp7L8kvDqQVg
-d881f42df5a2734f87b5c00ff9b221fd 2IH0LfWic0-HtcAP-bIh_Q
+UUID string:                         Hex:                             .String():
+5c61d893-95e1-b7b3-95ba-a215a1bafe84 5c61d89395e1b7b395baa215a1bafe84 XGHYk5Xht7OVuqIVobr-hA
+da304a44-29d0-9779-41bc-5d011878fa6c da304a4429d0977941bc5d011878fa6c 2jBKRCnQl3lBvF0BGHj6bA
+6874ff53-f7e8-8a4d-5c35-d47ec7de4509 6874ff53f7e88a4d5c35d47ec7de4509 aHT_U_foik1cNdR-x95FCQ
+4bc70e6f-78f0-25a0-bdf4-76a38665cf9d 4bc70e6f78f025a0bdf476a38665cf9d S8cOb3jwJaC99HajhmXPnQ
 ```
 
 ## Why `guid`? 🔥
