@@ -361,6 +361,9 @@ func TestParseAndDecodeBase64URL(t *testing.T) {
 	if DecodeBase64URL(g.UUID[:], []byte("short")) {
 		t.Error("DecodeBase64URL(\"short\") should fail")
 	}
+	if DecodeBase64URL(g.UUID[:], []byte("AAAAAAAAAAAAAAAAAAAAAB")) {
+		t.Error("DecodeBase64URL should fail when final Base64 padding bits are non-zero")
+	}
 	if DecodeBase64URL(g.UUID[:], []byte("!@#$%^&*()_+{}|")) {
 		t.Error("DecodeBase64URL(invalid chars) should fail")
 	}
@@ -376,6 +379,33 @@ func TestParseAndDecodeBase64URL(t *testing.T) {
 	}
 	if _, err := Parse(unicodeStr); err == nil {
 		t.Errorf("Parse(%q) should fail", unicodeStr)
+	}
+}
+
+func TestDecodeBase64URL_ValidFinalSextets(t *testing.T) {
+	tests := []struct {
+		finalChar byte
+		lastByte  byte
+	}{
+		{'A', 0},
+		{'Q', 1},
+		{'g', 2},
+		{'w', 3},
+	}
+
+	for _, test := range tests {
+		t.Run(string(test.finalChar), func(t *testing.T) {
+			src := []byte("AAAAAAAAAAAAAAAAAAAAAA")
+			src[GuidBase64UrlByteSize-1] = test.finalChar
+
+			var g Guid
+			if !DecodeBase64URL(g.UUID[:], src) {
+				t.Fatalf("DecodeBase64URL(%q) failed", src)
+			}
+			if g.UUID[GuidByteSize-1] != test.lastByte {
+				t.Errorf("last byte = %d, want %d", g.UUID[GuidByteSize-1], test.lastByte)
+			}
+		})
 	}
 }
 

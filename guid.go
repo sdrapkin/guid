@@ -592,7 +592,9 @@ func DecodeBase64URL(dst []byte, src []byte) (ok bool) {
 	b0 := decodeLookup[src[j]]
 	b1 := decodeLookup[src[j+1]]
 
-	if (b0 | b1) >= 64 {
+	// The final Base64 sextet contains only two data bits. Reject non-zero
+	// padding bits so every Guid has exactly one accepted representation.
+	if (b0|b1) >= 64 || b1&0x0F != 0 {
 		return false
 	}
 
@@ -612,20 +614,10 @@ func Read(b []byte) (n int, err error) {
 // Internal Variables
 //==============================================
 
-// https://go.dev/src/runtime/malloc.go
-//
-//go:linkname mallocgc runtime.mallocgc
-func mallocgc(size uintptr, typ unsafe.Pointer, needzero bool) unsafe.Pointer
-
 // guidCachePool is a sync.Pool that holds guidCache instances.
 var guidCachePool = sync.Pool{
 	New: func() any {
-		// Allocate exact size without zeroing memory
-		const guidCacheStructSize = unsafe.Sizeof(guidCache{})
-		ptr := mallocgc(guidCacheStructSize, nil, false)
-		cacheRef := (*guidCache)(ptr)
-		cacheRef.index = guidsPerCache // Start with index at the end to trigger a refill on first use
-		return cacheRef
+		return &guidCache{buffer: [guidsPerCache]uuid.UUID{}, index: guidsPerCache}
 	},
 }
 
