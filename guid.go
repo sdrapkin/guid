@@ -35,8 +35,8 @@ const (
 )
 
 // Ensure that the constants are not changed without thought.
-var _ = map[bool]int{false: 0, guidsPerCache == 255: 1}
-var _ = map[bool]int{false: 0, guidCacheByteSize == 4080: 1}
+var _ [guidsPerCache - 255]struct{}
+var _ [guidCacheByteSize - 4080]struct{}
 
 //==============================================
 // Errors and Variables
@@ -97,13 +97,19 @@ type reader struct{} // implements io.Reader interface
 var _reader reader = reader{}
 
 //==============================================
-// Shared Variables
+// Private Types
 //==============================================
 
-// guidCache holds a 4096-byte buffer and a byte index for Guid allocation.
+// guidCache holds a 4080-byte buffer and an offset for Guid allocation.
 type guidCache struct {
-	buffer [guidCacheByteSize]byte
-	offset int
+	buffer [guidsPerCache]uuid.UUID
+	index  int
+}
+
+// eface is a struct that represents the internal representation of an interface{} in Go.
+type eface struct {
+	_type unsafe.Pointer
+	data  unsafe.Pointer
 }
 
 //==============================================
@@ -229,7 +235,7 @@ func (guid Guid) EncodeBase64URL(dst []byte) error {
 	return nil
 }
 
-// Helper closure to pack 4 characters into one 32-bit integer (Little-Endian)
+// Helper function to pack 4 characters into one 32-bit integer (Little-Endian)
 //
 //go:inline
 func encode4(val uint32) uint32 {
@@ -251,23 +257,23 @@ func (guid *Guid) encodeBase64URL(dst []byte) {
 
 	// Offset 0
 	v := binary.BigEndian.Uint32(u[0:4]) >> 8
-	*(*uint32)(unsafe.Pointer(&dst[0])) = encode4(v)
+	binary.LittleEndian.PutUint32(dst[0:], encode4(v))
 
 	// Offset 3
 	v = binary.BigEndian.Uint32(u[3:7]) >> 8
-	*(*uint32)(unsafe.Pointer(&dst[4])) = encode4(v)
+	binary.LittleEndian.PutUint32(dst[4:], encode4(v))
 
 	// Offset 6
 	v = binary.BigEndian.Uint32(u[6:10]) >> 8
-	*(*uint32)(unsafe.Pointer(&dst[8])) = encode4(v)
+	binary.LittleEndian.PutUint32(dst[8:], encode4(v))
 
 	// Offset 9
 	v = binary.BigEndian.Uint32(u[9:13]) >> 8
-	*(*uint32)(unsafe.Pointer(&dst[12])) = encode4(v)
+	binary.LittleEndian.PutUint32(dst[12:], encode4(v))
 
 	// Offset 12 (bytes 12, 13, 14, 15 - slice upper bound 16 is safe)
 	v = binary.BigEndian.Uint32(u[12:16]) >> 8
-	*(*uint32)(unsafe.Pointer(&dst[16])) = encode4(v)
+	binary.LittleEndian.PutUint32(dst[16:], encode4(v))
 
 	// Final 16th byte (byte 15) -> 2 output characters (dst[20] and dst[21])
 	dst[20] = base64UrlAlphabet[b15>>2]
@@ -294,18 +300,26 @@ func (r reader) Read(b []byte) (int, error) {
 		return cryptoRand.Read(b)
 	}
 
-	guidCacheRef := guidCachePool.Get().(*guidCache)
+	guidCacheRefInterface := guidCachePool.Get()
+	guidCacheRef := (*guidCache)((*eface)(unsafe.Pointer(&guidCacheRefInterface)).data)
+	offset := guidCacheRef.index * GuidByteSize
 
-	offset := guidCacheRef.offset
+	// Round up the offset consumption to the nearest 16-byte boundary
+	alignedN := (n + GuidByteSize - 1) &^ (GuidByteSize - 1)
 
-	// Refills buffer if requested bytes exceed remaining capacity, or if pool object is brand new with max-offset
-	if offset+n > guidCacheByteSize {
-		cryptoRand.Read(guidCacheRef.buffer[:])
+	// Reinterpret the contiguous array memory as a byte slice
+	bufferAsByteSlice := unsafe.Slice((*byte)(unsafe.Pointer(&guidCacheRef.buffer)), guidCacheByteSize)
+
+	// Refill if the aligned chunk exceeds remaining capacity
+	if offset+alignedN > guidCacheByteSize {
+		cryptoRand.Read(bufferAsByteSlice)
 		offset = 0
 	}
 
-	copy(b, guidCacheRef.buffer[offset:offset+n])
-	guidCacheRef.offset = offset + n
+	copy(b, bufferAsByteSlice[offset:offset+n])
+
+	// Advance offset by 'alignedN' to keep the NEXT read 16-byte aligned
+	guidCacheRef.index = (offset + alignedN) >> 4
 
 	guidCachePool.Put(guidCacheRef)
 	return n, nil
@@ -435,17 +449,21 @@ func Max() Guid {
 
 // New generates a new cryptographically secure Guid.
 func New() (g Guid) {
-	guidCacheRef := guidCachePool.Get().(*guidCache)
+	guidCacheRefInterface := guidCachePool.Get()
+	guidCacheRef := (*guidCache)((*eface)(unsafe.Pointer(&guidCacheRefInterface)).data)
 
-	offset := guidCacheRef.offset
+	index := guidCacheRef.index
 
-	if offset > guidCacheByteSize-GuidByteSize {
-		cryptoRand.Read(guidCacheRef.buffer[:])
-		offset = 0
+	if index > guidsPerCache-1 {
+		// Reinterpret the contiguous array memory as a byte slice
+		bufferAsByteSlice := unsafe.Slice((*byte)(unsafe.Pointer(&guidCacheRef.buffer)), guidCacheByteSize)
+		cryptoRand.Read(bufferAsByteSlice)
+		index = 0
 	}
 
-	g.UUID = *(*[16]byte)(unsafe.Pointer(&guidCacheRef.buffer[offset]))
-	guidCacheRef.offset = offset + GuidByteSize
+	g = Guid{UUID: guidCacheRef.buffer[index]}
+
+	guidCacheRef.index = index + 1
 	guidCachePool.Put(guidCacheRef)
 	return g
 }
@@ -606,7 +624,7 @@ var guidCachePool = sync.Pool{
 		const guidCacheStructSize = unsafe.Sizeof(guidCache{})
 		ptr := mallocgc(guidCacheStructSize, nil, false)
 		cacheRef := (*guidCache)(ptr)
-		cacheRef.offset = guidCacheByteSize // Start with offset at the end to trigger a refill on first use
+		cacheRef.index = guidsPerCache // Start with index at the end to trigger a refill on first use
 		return cacheRef
 	},
 }
